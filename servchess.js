@@ -66,7 +66,7 @@ app.get('/soundmap', function (req, res) {
 })
 
 var http = require('http').Server(app);
-var port = 3008;
+var port = process.env.PORT || 3005;
 
 http.listen(port, function() {
     console.log('listening on port ' + port);
