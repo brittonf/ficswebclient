@@ -1,7 +1,8 @@
 ### This is a web client for the Free Internet Chess Server (FICS)
 
 ##### After cloning repository, go into it and then do:
-npm install express socket.io telnet-client pegjs
+npm init
+npm install body-parser mithril nodemon webpack webpack-cli express socket.io telnet-client pegjs --save
 
 ##### Do this once and then anytime pegjs/fics_parser.peg.js or pegjs/moves_parser.peg.js is changed
 cd pegjs && ./buildweb
