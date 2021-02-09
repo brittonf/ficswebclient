@@ -1,6 +1,6 @@
 const m = require('mithril')
 //const m = mithril();
-sock = io();
+ficswrap = io();
 var root = document.body;
 
 var Login = {
@@ -13,7 +13,7 @@ var Login = {
             var p = Cookies.get('password');
             if (u) {
                 console.log('qwenuthead');
-                sock.emit('login', [u,p]);
+                ficswrap.emit('login', [u,p]);
                 Login.mid_attempt = true;
             }
         }
@@ -46,7 +46,7 @@ var Login = {
                                 Cookies.remove('username');
                                 Cookies.remove('password');
                             }
-                            sock.emit('login', [Login.username, Login.password]);
+                            ficswrap.emit('login', [Login.username, Login.password]);
                             return false;
                        }
                    }, 'login')
@@ -54,7 +54,7 @@ var Login = {
            ]),
            m('tr', [
                m('td', {colspan: 2, align: 'center'}, 
-                   m('input',  {type: 'checkbox', id: 'autocheck', checked: true}),
+                   m('input',  {type: 'checkbox', id: 'autocheck'}),
                    m('span', {}, 'automatically login next time'),
                 ), 
            ]),
@@ -62,9 +62,315 @@ var Login = {
     }
 }
 
+console.log(window);
+$( window ).on('resize',function() {
+    calcDims();
+});
+
+NAV_HEIGHT_SHARE = .05;
+PLAYER_HEIGHT_SHARE = .05;
+SPACE_HEIGHT_SHARE = .03;
+INFO_MIN_HEIGHT_SHARE = .05;
+BOARD_MAX_HEIGHT_SHARE = 1 - (NAV_HEIGHT_SHARE * 2) - (PLAYER_HEIGHT_SHARE * 2) - (SPACE_HEIGHT_SHARE * 2) - (INFO_MIN_HEIGHT_SHARE * 2);
+
+function calcDims() {
+    var w = $(window).width();
+    var h = $(window).height();
+
+    var board_height_share = w/h;
+    if ( board_height_share > BOARD_MAX_HEIGHT_SHARE ) {
+        board_height_share = BOARD_MAX_HEIGHT_SHARE;
+    }
+    var info_height_share = (1 - (2 * NAV_HEIGHT_SHARE) - (2 * PLAYER_HEIGHT_SHARE) - (2 * SPACE_HEIGHT_SHARE) - board_height_share) / 2;
+    
+    var nav_height = h * NAV_HEIGHT_SHARE;
+    var player_height = h * PLAYER_HEIGHT_SHARE;
+    var space_height = h * SPACE_HEIGHT_SHARE;
+    var info_height = h * info_height_share;
+    var board_height = h * board_height_share;
+    var board_width = w > board_height ? board_height : w;
+
+    var nav_offset = 0;
+    var info_offset = nav_height;
+    var player_offset = info_offset + info_height;
+    var space_offset = player_offset + player_height;
+    var board_offset = space_offset + space_height;
+
+    $('#top_nav').css('height', nav_height+'px');
+    $('#top_nav').css('top', nav_offset+'px');
+    
+    $('#top_info').css('height', info_height+'px');
+    $('#top_info').css('top', info_offset+'px');
+    
+    $('#top_player').css('height', player_height+'px');
+    $('#top_player').css('top', player_offset+'px');
+    
+    $('#top_space').css('height', space_height+'px');
+    $('#top_space').css('top', space_offset+'px');
+
+    $('#board').css('height', board_height+'px');
+    $('#board').css('width', board_width+'px');
+    $('#board').css('top', board_offset+'px');
+
+    $('#bottom_space').css('height', space_height+'px');
+    $('#bottom_space').css('bottom', space_offset+'px');
+
+    $('#bottom_player').css('height', player_height+'px');
+    $('#bottom_player').css('bottom', player_offset+'px');
+    
+    $('#bottom_info').css('height', info_height+'px');
+    $('#bottom_info').css('bottom', info_offset+'px');
+    
+    $('#bottom_nav').css('height', nav_height+'px');
+    $('#bottom_nav').css('bottom', nav_offset+'px');
+    
+    g_board.resize();
+}
+var g_board;
+
+var TopMenu = {
+    view: function(vnode) {
+        return m('a', {"class":"dropdown"}, 
+				'M',
+				m("div", {"class":"dropdown_content"},
+					[
+						m("a", {}, 
+							"get game"
+						),
+						m("a", {}, 
+							"seek"
+						),
+						m("a", {}, 
+							"sought"
+						),
+						m("a", {}, 
+							"unseek"
+						),
+						m("a", {
+                                onclick: function(e) {
+                                    ficswrap.emit('command', 'games');
+                                    m.route.set('/gamelist');
+                                }
+                            }, 
+							"games"
+						),
+						m("a", {}, 
+							"match"
+						),
+						m("a", {}, 
+							"themes"
+						),
+						m("a", {}, 
+							"players"
+						),
+						m("a", {}, 
+							"relays"
+						),
+						m("a", {}, 
+							"sound"
+						),
+						m("a", {
+                                onclick: function(e) {
+                                    Cookies.remove('auto_login');
+                                    Cookies.remove('username');
+                                    Cookies.remove('password');
+                                    ficswrap.emit('command', 'exit');
+                                    m.route.set('/login');
+                                }
+                            },
+							"logout"
+						),
+					]
+				)
+			);
+    }
+}
+
+var GameSwitcher = {
+    view: function(vnode) {
+        return [
+            m('a', {}, '<'),
+            m('a', {}, 'G'),
+            m('a', {}, '>'),
+        ];
+    }
+}
+
+var ThemeSwitcher = {
+    view: function(vnode) {
+        return m('a', {}, 'T');
+    }
+}
+
+
+var Lobby = {
+    view: function(vnode) {
+        return m("div", {"id":"page"},
+                    m('div', {'id': 'top_nav', 'class': 'evenly_spaced nav_container'},
+                        [
+                            m(TopMenu),
+                            m(ThemeSwitcher),
+                        ]
+                     )
+        );
+
+    }
+}
+
+var GameList = {
+    renderGameList : function(lines) {
+        if (theme_board) { theme_board.destroy() }
+        $('#lists').empty();
+        $('<pre id="lists2"></pre>').appendTo($('#lists'));
+        lines.forEach(x => {
+            if (x.replace(/[\s\n\t\r\x07]*/g,'')) {
+                var gamenum = x.replace(/^\s+|\s+$/g, '').split(/\s+/)[0];
+                var li = $('<a href="#" class="list-item">'+x+'</a>');
+                li.css('color', 'orange');
+                li.on({
+                    click: function() {
+                        li.css('color', 'cyan');
+                        ficswrap.emit('command', 'observe ' + gamenum); 
+                        return false;
+                    }
+                }).appendTo('#lists2');
+            }
+        });
+    },
+    lines: [],
+
+    oninit: function(vnode) {
+        ficswrap.emit('command', 'games');
+    },
+    view: function(vnode) {
+        return m("div", {"id":"page"},
+                    m('div', {'id': 'top_nav', 'class': 'evenly_spaced nav_container'},
+                        [
+                            m(TopMenu),
+                            m(ThemeSwitcher),
+                        ]
+                     ),
+                m('div', {'id':'lists'},
+                    m('pre', {id:'lists2'},
+                        Array.from(GameList.lines).map( x => {
+                            if (x.replace(/[\s\n\t\r\x07]*/g,'')) {
+                                var gamenum = x.replace(/^\s+|\s+$/g, '').split(/\s+/)[0];
+                                return [m('a', {'href':'#', 'class':'list-item', 'style':'color:orange',
+                                        'onclick':function(e) {
+                                            $(this).css('color', 'cyan');
+                                            ficswrap.emit('command', 'observe ' + gamenum);
+                                            return false;
+                                        }},
+                                        x ),
+                                        m('br')];
+                            } else {
+                                return null;
+                            }
+                        })
+                    )
+                )
+        );
+
+    }
+}
+
+var Boards = {
+    oncreate: function(vnode) {
+        g_board = Chessboard('board', 'start');
+        calcDims();
+    },
+    oninit: function(vnode) {
+    },
+    view: function(vnode) {
+        return m("div", {"id":"page"},
+				[
+                    m('div', {'id': 'top_nav', 'class': 'evenly_spaced nav_container'},
+                        [
+                            m(TopMenu),
+                            m(GameSwitcher),
+                            m(ThemeSwitcher),
+                        ]
+                     ),
+	
+
+					m("div", {"id":"top_info","class":"info_container"}, 
+                            m('div', {'class':'centerbold'},
+						        "3 + 0 rated blitz")
+					),
+					m("div", {"id":"top_player","class":"player_container"}, 
+                            m('div', {"class":"player_name"},
+						        "plans_list_plans_nhc (1890)",
+                                m('div', {'class':'player_time'},
+                                    "5:00")
+                            )
+					),
+					m("div", {"id":"top_space","class":"player_space"}),
+					m("div", {"class":"board","id":"board"}),
+					m("div", {"id":"bottom_space","class":"player_space"}),
+					m("div", {"id":"bottom_player","class":"player_container"}, 
+                            m('div', {"class":"player_name"},
+						        "histEmpBen (2983)",
+                                m('div', {'class':'player_time'},
+                                    "1:43")
+                            )
+					),
+					m("div", {"id":"bottom_info","class":"info_container"}, 
+                            m('div', {'class':'centerbold'},
+						        "histEmpBen checkmated 0-1")
+					),
+                    m('div', {'id': 'bottom_nav', 'class': 'evenly_spaced nav_container'},
+                        [
+                            m('a', {"class":"dropdown"}, 
+									'M',
+									m("div", {"class":"dropdown_content dropup"},
+										[
+											m("a", {}, 
+												"abort"
+											),
+											m("a", {}, 
+												"remove"
+											),
+											m("a", {}, 
+												"share/export"
+											),
+											m("a", {}, 
+												"get game"
+											),
+											m("a", {}, 
+												"seek"
+											),
+											m("a", {}, 
+												"rematch"
+											),
+											m("a", {}, 
+												"draw"
+											),
+											m("a", {}, 
+												"resign"
+											),
+										]
+									)
+								),
+                            m('a', {}, 'F'),
+                            m('a', {}, '<<'),
+                            m('a', {}, '>>'),
+                        ]
+                     ),
+
+
+				]
+			)
+    }
+}
+
+
+m.route.set('/login');
 
 m.route(root, "/login", {
+    "/lobby": Lobby,
+    "/gamelist": GameList,
     "/login": Login,
+    "/boards": Boards,
 })
 
 
@@ -111,407 +417,213 @@ function highlightSquares(board_div, color, move=null, clear=false) {
 }
 
 
-sock.on('login_success', function(msg) {
-    console.log('in sock onnnnnnnnn login_success');
+ficswrap.on("logged_in", function(msg) {
+    $('#login_div').hide();
+    $('#shellout').show();
+    $('#shellin').show();
+    $('#games').prop('hidden', false);
+    $('#getgame').prop('hidden', false);
+    $('#sought').prop('hidden', false);
+    $('#match').prop('hidden', false);
+    $('#seek').prop('hidden', false);
+    $('#unseek').prop('hidden', false);
+    $('#themes').prop('hidden', false);
+    $('#resizer').prop('hidden', false);
+
+    Login.mid_attempt = false;
+
+    loadThemes();
+
+    //ficswrap.emit('get','soundmap'); //!!!???
+
+    ficswrap.emit('command', 'variables');
+    m.route.set('/lobby');
+});
+
+/*
+ficswrap.on('login_success', function(msg) {
+    console.log('in ficswrap onnnnnnnnn login_success');
     console.log(msg);
     Login.mid_attempt = false;
 
-    sock.emit('get','soundmap');
 
-    //m.route.set('/lobby');
-    m.route.set('/boards');
+    m.route.set('/lobby');
 });
+*/
 
 
 
 
 
-
-sock.on('error', function(msg) {
-    console.log('in sock on error!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+ficswrap.on("result", function(msg) {
     console.log(msg);
-});
+    var ficsobj = window.FICSPARSER.parse(msg);
+    console.log(ficsobj);
 
-sock.on('login_error', function(msg) {
-    console.log('in sock on login_error!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-    console.log(msg);
-    //Cookies.remove('username');
-    //Cookies.remove('password');
-    m.route.set('/login');
-});
-
-sock.on('game_info', function(msg) {
-    console.log('in sock on game_info');
-    console.log(msg);
-    Boards.addGame(msg);
-    m.route.set('/boards');
-});
-
-sock.on('move_info', function(msg) {
-    console.log('in sock on move_info');
-    console.log(msg);
-
-    var game_num = msg[0];
-    var game = Boards.games.get(game_num);
-    var mv = msg[1];
-
-    console.log(game);
-    if (game.chess) { 
-        var move_info = game.chess.move(mv, {sloppy:true});
-        console.log('move_info');
-        console.log(move_info);
-        if (move_info) {
-            var howmany = Math.ceil(Math.random() * 2);
-            for (i=1; i<=howmany; i++) {
-                if (game.chess.in_check()) {
-                    soundmap.checks[Math.floor(Math.random() * soundmap.checks.length)].play();
-                    soundmap.checks[Math.floor(Math.random() * soundmap.checks.length)].play();
-                } else if (['n','b','k','q','p'].includes(move_info.flags)) {
-                    soundmap.moves[Math.floor(Math.random() * soundmap.moves.length)].play();
-                    soundmap.moves[Math.floor(Math.random() * soundmap.moves.length)].play();
-                } else {
-                    soundmap.captures[Math.floor(Math.random() * soundmap.captures.length)].play();
-                    soundmap.captures[Math.floor(Math.random() * soundmap.captures.length)].play();
-                }
-            }
-
-            /*
-            if (['1-0','0-1','1/2-1/2'].indexOf(game.result) === -1) {
-                runClock(game_num);
-            }
-            */
-
-            var new_move_index = game.chess.history().length - 1;
-        
-            //game.movetimes[new_move_index] = ficsobj.s12.move_time;
-            game.fens[new_move_index] = game.chess.fen().split(/\s+/)[0];
-            //appendToMoveList(game_num, new_move_index);
-
-
-            //var whose_move = ['w','b'][new_move_index % 2];
-
-            var my_color = Boards.getMyColor(game_num);
-            var whose_move = game.chess.fen().split(/\s+/)[1];
-
-            var my_turn = whose_move === my_color;
-            console.log('here')
-            if (!my_turn && !game.premove) { console.log('here2'); Boards.goToMove(game_num, new_move_index, animate=false) }
-            else { console.log('here3'); Boards.goToMove(game_num, new_move_index, animate=true); }
-        }
-
-        /*
-        if (ficsobj.s12.my_rel === '1' && game.premove) {
-            var source = game.premove.from;
-            var target = game.premove.to;
-            var piece = game.premove.piece;
-            var mv = { from: source, to: target };
-
-            if (/[18]$/.test(target) && /[pP]/.test(piece)) {
-                var choices = game.chess.moves({verbose:true});
-                for (var i=0; i<choices.length; i++) {
-                    m = choices[i];
-                    if (m.from === source && m.to === target) {
-                        mv.promotion = 'q';
-                        break;
-                    }
-                }
-            }
-
-            highlightSquares($('#board_'+game_num), 'red', clear=true);
-            game.premove = null;
-
-            var valid_move = game.chess.move(mv);
-            if (valid_move) {
-                game.chess.undo();
-                ficswrap.emit('command',valid_move.san);
-            }
-        }
-        */
+    var showout = false;
+    if ( (ficsobj.cmd_num === 0 || ficsobj.cmd_num === 773450001) && /^123987001/.test(ficsobj.fullbody) === false) {
+        showout = true;
     }
-});
 
+    if (ficsobj.cmd_code) {
+        cmd_code = ficsobj.cmd_code;
+        // games command result
+        if (ficsobj.cmd_code === 43) {
+            //renderGameList(ficsobj.body.split('\n'));
+            GameList.lines = ficsobj.body.split('\n');
+            m.redraw()
 
+        // sought command result
+        } else if (ficsobj.cmd_code === 157) {
+            renderSoughtList(ficsobj.body.split('\n'));
 
-var Boards = {
-    games: new Map(),
+        // variables command result
+        } else if (ficsobj.cmd_code === 143) {
+            //console.log(ficsobj.fullbody);
 
-    need_js_board: [],
+        // moves command result
+        } else if (ficsobj.cmd_code === 77) {
+            var movesobj = window.MOVESPARSER.parse(ficsobj.body);
+            var game_num = movesobj.get("game_num");
+            var game = gamemap.get(game_num);
 
-    addGame: function(ginfo) {
-        Boards.games.set(ginfo.game_num, new Game(ginfo));
+            if (game) { 
+                game.initMoves(movesobj); 
 
-        var g = Boards.games.get(ginfo.game_num);
-        themes = Cookies.get('themes');
-        if (themes) { themes = JSON.parse(themes) };
-        
-        g.theme = themes[Math.floor(Math.random() * themes.length)];
-
-        if (Cookies.get('username') === g.black_player) {
-            g.top_is_black = 0;
-        } else if (Cookies.get('username') === g.white_player) {
-            g.top_is_black = 1;
-        } else {
-            g.top_is_black = Math.floor(Math.random() * 2);
+                renderGame(game_num);
+                renderMoveList(game_num, game.moves);
+            }
         }
+    }
+    
+    //showout = true;
 
-        Boards.need_js_board.push(ginfo.game_num);
-    },
+    if (ficsobj.unobserve) {
+        console.log('remove game nums');
+        console.log(ficsobj.remove_game_nums);
 
-    goToMove: function(game_num, i, animate=false) {
-        var game = Boards.games.get(game_num);
-        //$('.move_'+game_num).removeClass('highlight');
-        game.current_move_index = i;
-        if (i == -1) {
-            game.board.position(game.startfen, animate);
-        } else {
-            if (game.empty_square) { // piece is hovering
-                game.board.position(game.fens[i], animate);
-                var pos = game.board.position();
-                var piece_there_now = pos[game.empty_square];
-                if (piece_there_now === game.empty_piece) {
-                    delete pos[game.empty_square];
-                    game.board.position(pos, false);
-                } else {
-                    game.empty_square = null;
-                    game.empty_piece = null;
-                }
+        for (i=0; i<ficsobj.remove_game_nums.length; i++) {
+            var grdiv = $('#result_'+ficsobj.remove_game_nums[i]);
+            if (grdiv && grdiv.html() === 'IN PROGRESS') {
+                grdiv.html('NO LONGER OBSERVING');
+            }
+            stopClocks(ficsobj.remove_game_nums[i]);
+        }
+    }
+
+    if (ficsobj.game_info.result) {
+        var game_num = ficsobj.game_info.game_num;
+        var game = gamemap.get(game_num);
+        game.result = ficsobj.game_info.result;
+        game.situ = ficsobj.game_info.situ;
+
+        if (['1-0','0-1','1/2-1/2'].indexOf(game.result) != -1) {
+            soundmap.gong[Math.floor(Math.random() * soundmap.gong.length)].play();
+            stopClocks(game_num);
+        }
+        showResult(game_num);
+    }
+
+    if (ficsobj.observe) {
+        console.log('qwe');
+        var game_num = ficsobj.game_info.game_num;
+        if (gamemap.get(game_num)) {
+            removeGame(game_num);
+        }
+        gamemap.set(game_num, new Game(ficsobj.s12, ficsobj.game_info));
+        if (ficsobj.s12.my_rel === '1' || ficsobj.s12.my_rel === '-1') { 
+            human_game = gamemap.get(game_num); 
+            human_game.human_color =  (ficsobj.s12.whose_move === 'B' && ficsobj.s12.my_rel === '1') || (ficsobj.s12.whose_move === 'W' && ficsobj.s12.my_rel === '-1') ? 'b' : 'w';
+        }
+        console.log('qwe2');
+        ficswrap.emit('command', 'moves ' + game_num);
+    } else if (ficsobj.style12) {
+        var game_num = ficsobj.s12.game_num;
+        var game = gamemap.get(game_num);
+
+        if (game.chess) { 
+            if (game.chess.history().length != game.getMoveIndexFromS12() + 1) {
+                console.log('chess says '+game.chess.history().length + ' but s12 says ' + game.getMoveIndexFromS12() +', doing nothing');
+                //ficswrap.emit('command', 'moves '+game_num);
             } else {
-                game.board.position(game.fens[i], animate);
-            }
-
-            var mv = game.chess.history({verbose: true})[i];
-            var board_div = $('#board_'+game_num);
-
-            highlightSquares($('#board_'+game_num), 'yellow', move=mv);
-
-            //$('#move_' + game_num + '_' + i).addClass('highlight');;
-        }
-        /*
-        if (i == game.chess.history().length -1) {
-            $('#moves_'+game_num).scrollTop($('#moves_'+game_num).prop('scrollHeight'));
-        }
-        */
-    },
-
-	oninit : function(vnode) {
-	},
-    highlightSquares: function(board_div, color, move=null, clear=false) {
-        board_div.find('.square-55d63').removeClass('highlight-square-'+color);
-        if (move && !clear) {
-            board_div.find('.square-' + move.to).addClass('highlight-square-'+color);
-            board_div.find('.square-' + move.from).addClass('highlight-square-'+color);
-        }
-    },
-
-
-    getMyColor: function(gnum) {
-        var g = Boards.games.get(gnum);
-        var my_name = Cookies.get('username');
-
-        if ( [g.white_player, g.black_player].includes(my_name) ) {
-            return g.white_player === my_name ? 'w' : 'b';
-        } else {
-            return 'x';
-        }
-    },
-
-    makeJSBoards: function() {
-        console.log(Boards.games);
-        Array.from(Boards.games.keys()).map( gnum => {
-            var game = Boards.games.get(gnum);
-            console.log('WHOLE NEW CHESSBOARD JS BEING MADE');
-            game.board = new ChessBoard('board_' + gnum, {
-                pieceTheme: game.pieceTheme,
-                position: game.chess.fen().split(/\s+/)[0],
-                draggable:true,
-
-                onDragStart : function(source, piece, pos, orientation) {
-                    var my_color = Boards.getMyColor(gnum);
-                    var whose_move = game.chess.fen().split(/\s+/)[1];
-
-                    if (piece[0] === my_color) {
-                        var my_turn = whose_move === my_color;
-                        if ( !my_turn ) {
-                            game.empty_square = source;
-                            game.empty_piece = piece;
-                        }
-                        return true;
-                    }
-                    return false;
-                },
-                onDrop : function(source, target, piece, newPos, oldPos, orientation) {
-                    if (target === game.empty_square) {
-                        var pos = game.board.position();
-
-                        if (!pos[game.empty_square]) {
-                            pos[game.empty_square] = game.empty_piece;
-                            game.board.position(pos);
-                        }
-
-                        game.empty_square = null;
-                        game.empty_piece = null;
-
-
+                var move_info = game.chess.move(ficsobj.s12.move_note_short, {sloppy:true});
+                if (move_info) {
+                    if (game.chess.in_check()) {
+                        soundmap.checks[Math.floor(Math.random() * soundmap.checks.length)].play();
+                    } else if (['n','b','k','q','p'].includes(move_info.flags)) {
+                        soundmap.moves[Math.floor(Math.random() * soundmap.moves.length)].play();
                     } else {
-                        var mv = { from: source, to: target };
-                        if (/[18]$/.test(target) && /[pP]/.test(piece)) {
-                            var choices = game.chess.moves({verbose:true});
-                            for (var i=0; i<choices.length; i++) {
-                                var mo = choices[i];
-                                if (mo.from === source && mo.to === target) {
-                                    mv.promotion = 'q';
-                                    break;
-                                }
+                        soundmap.captures[Math.floor(Math.random() * soundmap.captures.length)].play();
+                    }
+
+                    game.s12 = ficsobj.s12;
+                    if (['1-0','0-1','1/2-1/2'].indexOf(game.result) === -1) {
+                        runClock(game_num);
+                    }
+
+                    var new_move_index = game.chess.history().length - 1;
+                
+                    game.movetimes[new_move_index] = ficsobj.s12.move_time;
+                    game.fens[new_move_index] = game.chess.fen().split(/\s+/)[0];
+                    appendToMoveList(game_num, new_move_index);
+
+
+                    var whose_move = ['w','b'][new_move_index % 2];
+
+                    if (whose_move === game.human_color && !game.premove) { goToMove(game_num, new_move_index, animate=false) }
+                    else { goToMove(game_num, new_move_index, animate=true); }
+                }
+
+                if (ficsobj.s12.my_rel === '1' && game.premove) {
+                    var source = game.premove.from;
+                    var target = game.premove.to;
+                    var piece = game.premove.piece;
+                    var mv = { from: source, to: target };
+
+                    if (/[18]$/.test(target) && /[pP]/.test(piece)) {
+                        var choices = game.chess.moves({verbose:true});
+                        for (var i=0; i<choices.length; i++) {
+                            m = choices[i];
+                            if (m.from === source && m.to === target) {
+                                mv.promotion = 'q';
+                                break;
                             }
-                        }
-                        var valid_move = game.chess.move(mv);
-                        if (valid_move) {
-                            game.chess.undo();
-                        }
-                        var whose_move = game.chess.fen().split(/\s+/)[1];
-                        var my_color = Boards.getMyColor(gnum);
-                        var my_turn = whose_move === my_color;
-                        if ( my_turn ) {
-                            if (!valid_move) {
-                                if (game.empty_square) {
-                                    var pos = game.board.position();
-
-                                    if (!pos[game.empty_square]) {
-                                        pos[game.empty_square] = game.empty_piece;
-                                        game.board.position(pos, false);
-                                    }
-
-                                    game.empty_square = null;
-                                    game.empty_piece = null;
-                                }
-                                return 'snapback';
-                            } else {
-                                sock.emit('move', [gnum, valid_move.from + '-' + valid_move.to]);
-                            }
-                        } else if ( !my_turn ) {
-                            var mv = {}
-                            if (source != target) {
-                                if (target === 'offboard') {
-                                    if (game.premove) {
-                                        if (game.premove.from === source) {
-                                            game.premove = null;
-                                            highlightSquares($('#board_'+gnum), 'red', clear=true);
-                                        }
-                                    } else { 
-                                        //do nothing
-                                    }
-                                } else {
-                                    mv.from = source;
-                                    mv.to = target;
-                                    mv.piece = piece;
-                                    game.premove = mv;
-                                    highlightSquares($('#board_'+gnum), 'red', clear=true);
-                                    highlightSquares($('#board_'+gnum), 'red', move=mv);
-
-                                    if (game.empty_square) {
-                                        var pos = game.board.position();
-
-                                        if (!pos[game.empty_square]) {
-                                            pos[game.empty_square] = game.empty_piece;
-                                            game.board.position(pos, false);
-                                        }
-
-                                        game.empty_square = null;
-                                        game.empty_piece = null;
-                                    }
-                                }
-                            }
-
-                            return 'snapback'
                         }
                     }
-                },
 
+                    highlightSquares($('#board_'+game_num), 'red', clear=true);
+                    game.premove = null;
 
-
-
-                },
-            );
-
-            if (!game.top_is_black) {
-                game.board.flip();
+                    var valid_move = game.chess.move(mv);
+                    if (valid_move) {
+                        game.chess.undo();
+                        ficswrap.emit('command',valid_move.san);
+                    }
+                }
             }
-            $('#board_'+gnum).find('.white-1e1d7').css('background-color', tinycolor(game.theme.light_rgba));
-            $('#board_'+gnum).find('.white-1e1d7').css('color', tinycolor(game.theme.dark_rgba));
-            $('#board_'+gnum).find('.black-3c85d').css('background-color', tinycolor(game.theme.dark_rgba));
-            $('#board_'+gnum).find('.black-3c85d').css('color', tinycolor(game.theme.light_rgba));
+        }
 
-            $('#board_'+gnum).find('.board-b72b1').css('background-image', game.theme.texture ? 'url(/textures/' + game.theme.texture + ')' : 'none');
-            $('#board_'+gnum).find('.board-b72b1').css('background-repeat', 'no-repeat');
-            $('#board_'+gnum).find('.board-b72b1').css('background-position', 'center');
-            $('#board_'+gnum).find('.board-b72b1').css('background-size', 'cover');
-        })
-    },
-
-    onupdate: function(vnode) {
-        console.log('in Boards onupdate');
-        Boards.makeJSBoards();
-
-
-    },
-
-    oncreate: function(vnode) {
-        console.log('in Boards oncreate');
-        Boards.makeJSBoards();
-
-
-    },
-
-    view: function(vnode) {
-        return m("div", {"id":"games_div"}, 
-                    Array.from(Boards.games.values(), g => {
-                        return m("div", {"class":"observe","id":"observe_"+g.game_num},
-                            [
-                                m("div", {"class":"player_name","id":"top_player_"+g.game_num}, 
-                                    g.top_is_black ? g.black_player : g.white_player
-                                    //"emCkew (1370)"
-                                ),
-                                m("div", {"class":"board_info_container"}, 
-                                    m("div", {"class":"board","id":"board_"+g.game_num,"style":"width: 95vw"}, 
-                                    )
-                                ),
-                                m("div", {"class":"player_name","id":"bottom_player_"+g.game_num}, 
-                                    g.top_is_black ? g.white_player : g.black_player
-                                    //"zigamo (1348)"
-                                )
-                            ]
-                        )
-                    })
-        );
+        //showout = false;
     }
-}
 
-Boards.addGame(
-            {
-                game_num: 'ui123ui12',
-                situ: 'IN PROGRESS',
-                result: '', //1-0, 0-1, 1/2-1/2
-                white_player: "RedNeck",
-                black_player: "Preppy",
-                white_rating: '2899',
-                black_rating: '3001',
-                runr: 'Unrated',
-                variant: 'Blitz',
-                time: 5,
-                inc: 5,
-            }
-        );
-
-m.route.set('/login');
+    if (ficsobj.fullbody.length && showout && !ficsobj.style12) 
+    {
+        $('#shellout2').append(ficsobj.fullbody.replace(/^773450001/, '\n<font color="red">fics%</font>') + '\n');
+        $('#shellout').scrollTop($('#shellout').prop('scrollHeight'));
+    }
+});
 
 
-var PlayerList = {
-    // show list o players
-}
 
-var GameList = {
-    // show a game list
-}
+
+
+
+
+
+
+
+
+
 
 
 
