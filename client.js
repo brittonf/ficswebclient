@@ -66,6 +66,14 @@ console.log(window);
 $( window ).on('resize',function() {
     calcDims();
 });
+$( window ).on('beforeunload',function() {
+    return "If you leave the fics telnet sess will be lost";
+});
+$(document).mouseup(function() { 
+    clearInterval(BoardController.rwtimer);
+    clearInterval(BoardController.fftimer);
+});
+
 
 NAV_HEIGHT_SHARE = .05;
 PLAYER_HEIGHT_SHARE = .05;
@@ -99,34 +107,38 @@ function calcDims() {
     $('#top_nav').css('height', nav_height+'px');
     $('#top_nav').css('top', nav_offset+'px');
     
-    $('#top_info').css('height', info_height+'px');
-    $('#top_info').css('top', info_offset+'px');
+    $('.top_info').css('height', info_height+'px');
+    $('.top_info').css('top', info_offset+'px');
     
-    $('#top_player').css('height', player_height+'px');
-    $('#top_player').css('top', player_offset+'px');
+    $('.top_player').css('height', player_height+'px');
+    $('.top_player').css('top', player_offset+'px');
     
-    $('#top_space').css('height', space_height+'px');
-    $('#top_space').css('top', space_offset+'px');
+    $('.top_space').css('height', space_height+'px');
+    $('.top_space').css('top', space_offset+'px');
 
-    $('#board').css('height', board_height+'px');
-    $('#board').css('width', board_width+'px');
-    $('#board').css('top', board_offset+'px');
+    $('.board').css('height', board_height+'px');
+    $('.board').css('width', board_width+'px');
+    $('.board').css('top', board_offset+'px');
 
-    $('#bottom_space').css('height', space_height+'px');
-    $('#bottom_space').css('bottom', space_offset+'px');
+    $('.bottom_space').css('height', space_height+'px');
+    $('.bottom_space').css('bottom', space_offset+'px');
 
-    $('#bottom_player').css('height', player_height+'px');
-    $('#bottom_player').css('bottom', player_offset+'px');
+    $('.bottom_player').css('height', player_height+'px');
+    $('.bottom_player').css('bottom', player_offset+'px');
     
-    $('#bottom_info').css('height', info_height+'px');
-    $('#bottom_info').css('bottom', info_offset+'px');
+    $('.bottom_info').css('height', info_height+'px');
+    $('.bottom_info').css('bottom', info_offset+'px');
     
     $('#bottom_nav').css('height', nav_height+'px');
     $('#bottom_nav').css('bottom', nav_offset+'px');
     
-    g_board.resize();
+    /*
+    if (Board.board) {
+        Board.board.resize();
+        Board.applyTheme();
+    }
+    */
 }
-var g_board;
 
 var TopMenu = {
     view: function(vnode) {
@@ -188,10 +200,21 @@ var TopMenu = {
 
 var GameSwitcher = {
     view: function(vnode) {
+        var gnums_ordered = Array.from(gamemap.keys());
+        var i = gnums_ordered.indexOf(BoardController.cur_game_num);
+        var next = i+1;
+        var prev = i-1;
+        if ( next >= gnums_ordered.length ) {
+            next = 0;
+        }
+        if ( prev < 0 ) {
+            prev = gnums_ordered.length - 1;
+        }
         return [
-            m('a', {}, '<'),
+            m('a', {onclick: () => m.route.set('/board_controller?cur_game_num='+gnums_ordered[prev], null, {state: {key: Date.now()}})}, '<'),
+            //m('a', {onclick: () => {BoardController.cur_game_num = gnums_ordered[prev]; Board.game_num = gnums_ordered[prev]; m.redraw(); m.route.set('/board_controller');}}, '<'),
             m('a', {}, 'G'),
-            m('a', {}, '>'),
+            m('a', {onclick: () => m.route.set('/board_controller?cur_game_num='+gnums_ordered[next], null, {state: {key: Date.now()}})}, '>'),
         ];
     }
 }
@@ -218,29 +241,9 @@ var Lobby = {
 }
 
 var GameList = {
-    renderGameList : function(lines) {
-        if (theme_board) { theme_board.destroy() }
-        $('#lists').empty();
-        $('<pre id="lists2"></pre>').appendTo($('#lists'));
-        lines.forEach(x => {
-            if (x.replace(/[\s\n\t\r\x07]*/g,'')) {
-                var gamenum = x.replace(/^\s+|\s+$/g, '').split(/\s+/)[0];
-                var li = $('<a href="#" class="list-item">'+x+'</a>');
-                li.css('color', 'orange');
-                li.on({
-                    click: function() {
-                        li.css('color', 'cyan');
-                        ficswrap.emit('command', 'observe ' + gamenum); 
-                        return false;
-                    }
-                }).appendTo('#lists2');
-            }
-        });
-    },
     lines: [],
 
     oninit: function(vnode) {
-        ficswrap.emit('command', 'games');
     },
     view: function(vnode) {
         return m("div", {"id":"page"},
@@ -274,14 +277,383 @@ var GameList = {
     }
 }
 
-var Boards = {
+function toMinutes(seconds) {
+	var seconds = parseInt(seconds);
+	var minutes = Math.floor(seconds / 60).toString();
+	var remaining_seconds = seconds - minutes * 60;
+	
+	if ( remaining_seconds.toString().length == 1 ) {
+		remaining_seconds = '0' + remaining_seconds.toString();
+	}
+	else {
+		remaining_seconds = remaining_seconds.toString();
+	}
+	return minutes + ':' + remaining_seconds
+}
+
+
+function runClock(game_num) {
+    var game = gamemap.get(game_num);
+    if (!game) {
+        console.log('in runClock and game not found for game_num ' + game_num);
+    }
+    stopClocks(game_num);
+
+    var whose_move = ['w','b'][game.chess.history().length % 2];
+    var not_whose_move = ['b','w'][game.chess.history().length % 2];
+    if ( (game.top_is_black && whose_move === 'b') || (!game.top_is_black && whose_move === 'w') ) {
+        $('#bottom_time_'+game_num).html(toMinutes(game.s12[not_whose_move+'_clock']));
+        $('#bottom_time_'+game_num).css('background-color', '#222222');
+        $('#bottom_time_'+game_num).css('color', 'lime');
+        $('#top_time_'+game_num).css('background-color', 'darkorange');
+        $('#top_time_'+game_num).css('color', 'indigo');
+    } else {
+        $('#top_time_'+game_num).html(toMinutes(game.s12[not_whose_move+'_clock']));
+        $('#top_time_'+game_num).css('background-color', '#222222');
+        $('#top_time_'+game_num).css('color', 'lime');
+        $('#bottom_time_'+game_num).css('background-color', 'darkorange');
+        $('#bottom_time_'+game_num).css('color', 'indigo');
+    }
+
+    if (game.chess.history().length > 1) {
+        game.clocks[whose_move] = setInterval( function() {
+            if (game.s12[whose_move+'_clock'] <= 0) {
+                stopClocks(game_num);
+                return;
+            }
+            game.s12[whose_move+'_clock'] -= 1;
+            if ( (game.top_is_black && whose_move === 'b') || (!game.top_is_black && whose_move === 'w') ) {
+                $('#top_time_'+game_num).html(toMinutes(game.s12[whose_move+'_clock']));
+            } else {
+                $('#bottom_time_'+game_num).html(toMinutes(game.s12[whose_move+'_clock']));
+            }
+        }, 1000);
+    }
+}
+
+function stopClocks(game_num) {
+    var game = gamemap.get(game_num);
+    if (game) {
+        clearInterval(game.clocks['w']);
+        clearInterval(game.clocks['b']);
+        console.log('clock should be stopping for gamenum ' + game_num);
+    } else {
+        console.log('in stopClocks and game not found for game_num ' + game_num);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+var Board = {
+    //gamemap: new Map(),
+    game_num: '',
+    board: null,
+    createChessboard: function() {
+        var game = gamemap.get(Board.game_num);
+        Board.board = new ChessBoard('board', {
+            pieceTheme: game.pieceTheme,
+            position: game.chess.fen().split(/\s+/)[0],
+            draggable:true,
+            onDragStart : function(source, piece, pos, orientation) {
+                if (piece[0] === game.human_color) {
+                    if (game.s12.my_rel === '-1') {
+                        game.empty_square = source;
+                        game.empty_piece = piece;
+                    }
+                    return true;
+                }
+                return false;
+            },
+            onDrop : function(source, target, piece, newPos, oldPos, orientation) {
+                if (target === game.empty_square) {
+                    var pos = Board.board.position();
+
+                    if (!pos[game.empty_square]) {
+                        pos[game.empty_square] = game.empty_piece;
+                        Board.board.position(pos);
+                    }
+
+                    game.empty_square = null;
+                    game.empty_piece = null;
+
+
+                } else {
+                    var mv = { from: source, to: target };
+                    if (/[18]$/.test(target) && /[pP]/.test(piece)) {
+                        var choices = game.chess.moves({verbose:true});
+                        for (var i=0; i<choices.length; i++) {
+                            m = choices[i];
+                            if (m.from === source && m.to === target) {
+                                mv.promotion = 'q';
+                                break;
+                            }
+                        }
+                    }
+                    var valid_move = game.chess.move(mv);
+                    if (valid_move) {
+                        game.chess.undo();
+                    }
+                    if (game.s12.my_rel === '1') {
+                        if (!valid_move) {
+                            if (game.empty_square) {
+                                var pos = Board.board.position();
+
+                                if (!pos[game.empty_square]) {
+                                    pos[game.empty_square] = game.empty_piece;
+                                    Board.board.position(pos, false);
+                                }
+
+                                game.empty_square = null;
+                                game.empty_piece = null;
+                            }
+                            return 'snapback';
+                        } else {
+                            ficswrap.emit('command', valid_move.from + '-' + valid_move.to);
+                        }
+                    } else if (game.s12.my_rel === '-1') {
+                        var mv = {}
+                        if (source != target) {
+                            if (target === 'offboard') {
+                                if (game.premove) {
+                                    if (game.premove.from === source) {
+                                        game.premove = null;
+                                        highlightSquares($('#board'), 'red', clear=true);
+                                    }
+                                } else { 
+                                    //do nothing
+                                }
+                            } else {
+                                mv.from = source;
+                                mv.to = target;
+                                mv.piece = piece;
+                                game.premove = mv;
+                                highlightSquares($('#board'), 'red', clear=true);
+                                highlightSquares($('#board'), 'red', move=mv);
+
+                                if (game.empty_square) {
+                                    var pos = Board.board.position();
+
+                                    if (!pos[game.empty_square]) {
+                                        pos[game.empty_square] = game.empty_piece;
+                                        Board.board.position(pos, false);
+                                    }
+
+                                    game.empty_square = null;
+                                    game.empty_piece = null;
+                                }
+                            }
+                        }
+
+                        return 'snapback'
+                    }
+                }
+            },
+        });
+
+    },
+    goToMove: function(game_num, i, animate=false) {
+        if ( game_num !== Board.game_num || !$('#board').children().length ) {
+            console.log('this should not happen');
+            return;
+        }
+
+        console.log('in goToMove, game_num is');
+        console.log(Board.game_num);
+        var game = gamemap.get(Board.game_num);
+        game.current_move_index = i;
+        if (i == -1) {
+            Board.board.position(game.startfen, animate);
+        } else {
+            if (i == -2) {
+                i = game.chess.history().length - 1;
+            }
+            if (game.empty_square) { // piece is hovering
+                Board.board.position(game.fens[i], animate);
+                var pos = Board.board.position();
+                var piece_there_now = pos[game.empty_square];
+                if (piece_there_now === game.empty_piece) {
+                    delete pos[game.empty_square];
+                    Board.board.position(pos, false);
+                } else {
+                    game.empty_square = null;
+                    game.empty_piece = null;
+                }
+            } else {
+                console.log(game);
+                console.log(Board.board);
+                Board.board.position(game.fens[i], animate);
+            }
+
+            var mv = game.chess.history({verbose: true})[i];
+
+            highlightSquares($('#board'), 'yellow', move=mv);
+
+        }
+    },
+
+    applyTheme: function() {
+        var game = gamemap.get(Board.game_num);
+        console.log('game.theme');
+        console.log(game.theme);
+        $('#board').find('.white-1e1d7').css('background-color', tinycolor(game.theme.light_rgba));
+        $('#board').find('.white-1e1d7').css('color', tinycolor(game.theme.dark_rgba));
+        $('#board').find('.black-3c85d').css('background-color', tinycolor(game.theme.dark_rgba));
+        $('#board').find('.black-3c85d').css('color', tinycolor(game.theme.light_rgba));
+
+        $('#board').find('.board-b72b1').css('background-image', game.theme.texture ? 'url(/textures/' + game.theme.texture + ')' : 'none');
+        $('#board').find('.board-b72b1').css('background-repeat', 'no-repeat');
+        $('#board').find('.board-b72b1').css('background-position', 'center');
+        $('#board').find('.board-b72b1').css('background-size', 'cover');
+    },
+
     oncreate: function(vnode) {
-        g_board = Chessboard('board', 'start');
+        console.log('IN BOARD ONCREATE');
+        console.log('game_num is '+Board.game_num);
+        Board.createChessboard();
+        Board.applyTheme();
+        Board.goToMove(Board.game_num, -2);
+        runClock(Board.game_num);
+    },
+    oninit: function(vnode) {
+        console.log('IN BOARD ONINIT');
+        console.log('game_num is '+Board.game_num);
+        Board.game_num = vnode.attrs.game_num;
+        console.log('game_num is '+Board.game_num);
+    },
+    onupdate: function(vnode) {
+        console.log('IN BOARD ONUPDATE');
+        console.log('game_num is '+Board.game_num);
+        if ( Board.game_num != vnode.attrs.game_num ) {
+            Board.game_num = vnode.attrs.game_num;
+            Board.createChessboard();
+            Board.applyTheme();
+            Board.goToMove(Board.game_num, -2);
+            runClock(Board.game_num);
+            //if ( !$('#board').children().length ) {
+            //    Board.createChessboard();
+            //}
+        }
+        //console.log('game_num is '+Board.game_num);
+        //Board.applyTheme();
+        //Board.goToMove(Board.game_num, -2);
+        //runClock(Board.game_num);
+    },
+    view: function(vnode) {
+        var game = gamemap.get(Board.game_num);
+        return [gamemap.get(Board.game_num)].map( game => {
+
+		    return [
+                    m("div", {"id":"top_info_"+Board.game_num,"class":"info_container top_info"}, 
+                            m('div', {'class':'centerbold'},
+						        game.chess.header().Event)
+					),
+
+
+
+					m("div", {"id":"top_player_"+Board.game_num,"class":"player_container top_player"}, 
+                            game.top_is_black
+                            ?
+                            m('div', {"class":"player_name"},
+						        game.chess.header().Black + ' (' + game.chess.header().BlackElo + ')',
+                                m('div', {'id':'top_time_'+Board.game_num,'class':'player_time'},
+                                    toMinutes(game.s12.b_clock))
+                            )
+                            :
+                            m('div', {"class":"player_name"},
+						        game.chess.header().White + ' (' + game.chess.header().WhiteElo + ')',
+                                m('div', {'id':'top_time_'+Board.game_num,'class':'player_time'},
+                                    toMinutes(game.s12.w_clock))
+                            )
+					),
+
+
+
+
+					m("div", {"id":"top_space_"+Board.game_num,"class":"player_space top_space"}),
+
+					m("div", {"id":"board","class":"board"}),
+
+                    m("div", {"id":"bottom_space_"+Board.game_num,"class":"player_space bottom_space"}),
+
+
+
+
+					m("div", {"id":"bottom_player_"+Board.game_num,"class":"player_container bottom_player"}, 
+                            game.top_is_black
+                            ?
+                            m('div', {"class":"player_name"},
+						        game.chess.header().White + ' (' + game.chess.header().WhiteElo + ')',
+                                m('div', {'id':'bottom_time_'+Board.game_num,'class':'player_time'},
+                                    toMinutes(game.s12.w_clock))
+                            )
+                            :
+                            m('div', {"class":"player_name"},
+						        game.chess.header().Black + ' (' + game.chess.header().BlackElo + ')',
+                                m('div', {'id':'bottom_time_'+Board.game_num,'class':'player_time'},
+                                    toMinutes(game.s12.b_clock))
+                            )
+					),
+
+
+					m("div", {"id":"bottom_info_"+Board.game_num,"class":"info_container bottom_info"}, 
+                            m('div', {'id':'result_'+Board.game_num,'class':'centerbold'},
+                                /*
+						        game.situ || game.result
+                                ?
+                                */
+                                game.situ + ' ' + game.result
+                                /*
+                                :
+                                'IN PROGRESS'
+                                */
+                            )
+					),
+				]
+        });
+    }
+    ,
+    test: function(attrs) {
+        console.log('YYYYYYYYYYYYYYYIIIIIIIIIIIIIIIIIPPPPPPPPPPPPPPPPPEEEEEEEEEEEEEEEEEEEEEEE');
+        console.log(this);
+        console.log(attrs.game_num);
+    }
+}
+    
+var BoardController = {
+    cur_game_num: '',
+
+    oncreate: function(vnode) {
+        console.log('IN BOARDCPONTROLLER ONCREATE');
+        console.log('cur_game_num is '+BoardController.cur_game_num);
         calcDims();
     },
     oninit: function(vnode) {
+        if ( vnode.attrs.cur_game_num ) {
+            BoardController.cur_game_num = vnode.attrs.cur_game_num;
+        }
+        console.log('IN BOARDCONTROLLER ONINIT');
+        console.log('cur_game_num is '+BoardController.cur_game_num);
+    },
+    onupdate: function(vnode) {
+        if ( BoardController.cur_game_num != vnode.attrs.cur_game_num ) {
+            BoardController.cur_game_num = vnode.attrs.cur_game_num;
+        }
+        console.log('IN BOARDCONTOLRRER ONUPDATE');
+        console.log('cur_game_num is '+BoardController.cur_game_num);
     },
     view: function(vnode) {
+        var game = gamemap.get(BoardController.cur_game_num);
         return m("div", {"id":"page"},
 				[
                     m('div', {'id': 'top_nav', 'class': 'evenly_spaced nav_container'},
@@ -290,34 +662,10 @@ var Boards = {
                             m(GameSwitcher),
                             m(ThemeSwitcher),
                         ]
-                     ),
+                    ),
 	
+                    m(Board, {game_num: BoardController.cur_game_num}),
 
-					m("div", {"id":"top_info","class":"info_container"}, 
-                            m('div', {'class':'centerbold'},
-						        "3 + 0 rated blitz")
-					),
-					m("div", {"id":"top_player","class":"player_container"}, 
-                            m('div', {"class":"player_name"},
-						        "plans_list_plans_nhc (1890)",
-                                m('div', {'class':'player_time'},
-                                    "5:00")
-                            )
-					),
-					m("div", {"id":"top_space","class":"player_space"}),
-					m("div", {"class":"board","id":"board"}),
-					m("div", {"id":"bottom_space","class":"player_space"}),
-					m("div", {"id":"bottom_player","class":"player_container"}, 
-                            m('div', {"class":"player_name"},
-						        "histEmpBen (2983)",
-                                m('div', {'class':'player_time'},
-                                    "1:43")
-                            )
-					),
-					m("div", {"id":"bottom_info","class":"info_container"}, 
-                            m('div', {'class':'centerbold'},
-						        "histEmpBen checkmated 0-1")
-					),
                     m('div', {'id': 'bottom_nav', 'class': 'evenly_spaced nav_container'},
                         [
                             m('a', {"class":"dropdown"}, 
@@ -351,16 +699,69 @@ var Boards = {
 										]
 									)
 								),
-                            m('a', {}, 'F'),
-                            m('a', {}, '<<'),
-                            m('a', {}, '>>'),
+
+                            m('a', {onclick: function() {
+                                game.top_is_black = game.top_is_black ? false : true;
+                                Board.board.flip();
+
+                                $('#board').find('.white-1e1d7').css('background-color', tinycolor(game.theme.light_rgba));
+                                $('#board').find('.white-1e1d7').css('color', tinycolor(game.theme.dark_rgba));
+                                $('#board').find('.black-3c85d').css('background-color', tinycolor(game.theme.dark_rgba));
+                                $('#board').find('.black-3c85d').css('color', tinycolor(game.theme.light_rgba));
+
+                                $('#board').find('.board-b72b1').css('background-image', game.theme.texture ? 'url(/textures/' + game.theme.texture + ')' : 'none');
+                                $('#board').find('.board-b72b1').css('background-repeat', 'no-repeat');
+                                $('#board').find('.board-b72b1').css('background-position', 'center');
+                                $('#board').find('.board-b72b1').css('background-size', 'cover');
+                                runClock(BoardController.cur_game_num);
+                                return false;
+                            }}, 
+                                'F'),
+
+                            //m('a', {onmousedown: BoardController.rewind, onmouseup: () => clearInterval(BoardController.rwtimer)},
+                            m('a', {onmousedown: BoardController.rewind},
+                                '<<'),
+
+                            //m('a', {onmousedown: BoardController.fastforward, onmouseup: () => clearInterval(BoardController.fftimer)},
+                            m('a', {onmousedown: BoardController.fastforward},
+                                '>>'),
+
                         ]
                      ),
 
 
 				]
 			)
-    }
+    },
+    rewind: function() {
+
+        var game = gamemap.get(BoardController.cur_game_num);
+        if (game.current_move_index > -1) {
+            BoardController.rwtimer = setInterval( function() {
+                                    if (game.current_move_index > -1) {
+                                        Board.goToMove(game.game_num, game.current_move_index - 1);
+                                    }
+                                    m.redraw();
+            }, 150);
+        }
+        return false;
+
+
+
+
+    },
+    fastforward: function() {
+        var game = gamemap.get(BoardController.cur_game_num);
+        if (game.current_move_index < game.chess.history().length - 1) {
+            BoardController.fftimer = setInterval( function() {
+                                    if (game.current_move_index < game.chess.history().length - 1) {
+                                        Board.goToMove(game.game_num, game.current_move_index + 1);
+                                    }
+                                    m.redraw();
+            }, 150);
+        }
+        return false;
+    },
 }
 
 
@@ -370,7 +771,7 @@ m.route(root, "/login", {
     "/lobby": Lobby,
     "/gamelist": GameList,
     "/login": Login,
-    "/boards": Boards,
+    "/board_controller": BoardController,
 })
 
 
@@ -397,16 +798,18 @@ var soundmap = {
     checks: []
 };
 
+var themes;
 
 function loadThemes() {
-    var themes = Cookies.get('themes');
+    themes = Cookies.get('themes');
     if (!themes) {
         themes = default_themes;
         Cookies.set('themes', JSON.stringify(themes), {expires: 30000});
+    } else {
+        themes = JSON.parse(themes);
     }
 }
 
-loadThemes();
 
 function highlightSquares(board_div, color, move=null, clear=false) {
     board_div.find('.square-55d63').removeClass('highlight-square-'+color);
@@ -418,25 +821,37 @@ function highlightSquares(board_div, color, move=null, clear=false) {
 
 
 ficswrap.on("logged_in", function(msg) {
-    $('#login_div').hide();
-    $('#shellout').show();
-    $('#shellin').show();
-    $('#games').prop('hidden', false);
-    $('#getgame').prop('hidden', false);
-    $('#sought').prop('hidden', false);
-    $('#match').prop('hidden', false);
-    $('#seek').prop('hidden', false);
-    $('#unseek').prop('hidden', false);
-    $('#themes').prop('hidden', false);
-    $('#resizer').prop('hidden', false);
-
     Login.mid_attempt = false;
 
     loadThemes();
 
-    //ficswrap.emit('get','soundmap'); //!!!???
+    console.log(themes);
+
+    m.request({
+        method: 'GET',
+        url: '/soundmap'
+    })
+    .then( (result) => {
+        for (i=0; i<result.ambience.length; i++) {
+            soundmap.ambience.push( new Howl({ src: ['/sound/ambience/' + result.ambience[i]] }) );
+        }
+        for (i=0; i<result.gong.length; i++) {
+            soundmap.gong.push( new Howl({ src: ['/sound/gong/' + result.gong[i]] }) );
+        }
+        for (i=0; i<result.moves.length; i++) {
+            soundmap.moves.push( new Howl({ src: ['/sound/moves/' + result.moves[i]] }) );
+        }
+        for (i=0; i<result.captures.length; i++) {
+            soundmap.captures.push( new Howl({ src: ['/sound/captures/' + result.captures[i]] }) );
+        }
+        for (i=0; i<result.checks.length; i++) {
+            soundmap.checks.push( new Howl({ src: ['/sound/checks/' + result.checks[i]] }) );
+        }
+    })
+    .catch( (err) => console.log('EROROROR: ' + err) );
 
     ficswrap.emit('command', 'variables');
+
     m.route.set('/lobby');
 });
 
@@ -489,9 +904,8 @@ ficswrap.on("result", function(msg) {
 
             if (game) { 
                 game.initMoves(movesobj); 
-
-                renderGame(game_num);
-                renderMoveList(game_num, game.moves);
+                //BoardController.cur_game_num = game_num;
+                m.route.set('/board_controller?cur_game_num='+game_num);
             }
         }
     }
@@ -502,10 +916,19 @@ ficswrap.on("result", function(msg) {
         console.log('remove game nums');
         console.log(ficsobj.remove_game_nums);
 
+        /*
         for (i=0; i<ficsobj.remove_game_nums.length; i++) {
             var grdiv = $('#result_'+ficsobj.remove_game_nums[i]);
             if (grdiv && grdiv.html() === 'IN PROGRESS') {
                 grdiv.html('NO LONGER OBSERVING');
+            }
+            stopClocks(ficsobj.remove_game_nums[i]);
+        }
+        */
+        for (i=0; i<ficsobj.remove_game_nums.length; i++) {
+            var game = gamemap.get(ficsobj.remove_game_nums[i]);
+            if ( game.situ === 'IN PROGRESS' ) {
+                game.situ = 'NO LONGER OBSERVING';
             }
             stopClocks(ficsobj.remove_game_nums[i]);
         }
@@ -516,21 +939,24 @@ ficswrap.on("result", function(msg) {
         var game = gamemap.get(game_num);
         game.result = ficsobj.game_info.result;
         game.situ = ficsobj.game_info.situ;
+        //if ( !game.situ ) { game.situ = 'IN PROGRESS'; }
 
         if (['1-0','0-1','1/2-1/2'].indexOf(game.result) != -1) {
             soundmap.gong[Math.floor(Math.random() * soundmap.gong.length)].play();
             stopClocks(game_num);
+            console.log('did the clocks stop?');
         }
-        showResult(game_num);
+        m.redraw();
     }
 
     if (ficsobj.observe) {
         console.log('qwe');
         var game_num = ficsobj.game_info.game_num;
-        if (gamemap.get(game_num)) {
-            removeGame(game_num);
-        }
+        //if (gamemap.get(game_num)) {    //FIXME
+        //    removeGame(game_num);
+        //}
         gamemap.set(game_num, new Game(ficsobj.s12, ficsobj.game_info));
+        gamemap.get(game_num).theme = themes[Math.floor(Math.random() * themes.length)];
         if (ficsobj.s12.my_rel === '1' || ficsobj.s12.my_rel === '-1') { 
             human_game = gamemap.get(game_num); 
             human_game.human_color =  (ficsobj.s12.whose_move === 'B' && ficsobj.s12.my_rel === '1') || (ficsobj.s12.whose_move === 'W' && ficsobj.s12.my_rel === '-1') ? 'b' : 'w';
@@ -565,13 +991,21 @@ ficswrap.on("result", function(msg) {
                 
                     game.movetimes[new_move_index] = ficsobj.s12.move_time;
                     game.fens[new_move_index] = game.chess.fen().split(/\s+/)[0];
-                    appendToMoveList(game_num, new_move_index);
+                    //appendToMoveList(game_num, new_move_index);
 
 
                     var whose_move = ['w','b'][new_move_index % 2];
 
-                    if (whose_move === game.human_color && !game.premove) { goToMove(game_num, new_move_index, animate=false) }
-                    else { goToMove(game_num, new_move_index, animate=true); }
+                    console.log('#board');
+                    console.log($('#board'));
+                    console.log($('#board').length);
+
+                    //if ( $('#board').children().length ) {
+                    if ( Board.game_num === game.game_num ) {
+                        if (whose_move === game.human_color && !game.premove) { Board.goToMove(game_num, new_move_index, animate=false) }
+                        else { Board.goToMove(game_num, new_move_index, animate=true); }
+                    }
+
                 }
 
                 if (ficsobj.s12.my_rel === '1' && game.premove) {
@@ -591,7 +1025,7 @@ ficswrap.on("result", function(msg) {
                         }
                     }
 
-                    highlightSquares($('#board_'+game_num), 'red', clear=true);
+                    highlightSquares($('#board'), 'red', clear=true);
                     game.premove = null;
 
                     var valid_move = game.chess.move(mv);
