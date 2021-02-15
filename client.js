@@ -12,7 +12,6 @@ var Login = {
             var u = Cookies.get('username');
             var p = Cookies.get('password');
             if (u) {
-                console.log('qwenuthead');
                 ficswrap.emit('login', [u,p]);
                 Login.mid_attempt = true;
             }
@@ -62,14 +61,13 @@ var Login = {
     }
 }
 
-console.log(window);
 $( window ).on('resize',function() {
     calcDims();
 });
 $( window ).on('beforeunload',function() {
     return "If you leave the fics telnet sess will be lost";
 });
-$(document).mouseup(function() { 
+$( document ).on('mouseup', function() { 
     clearInterval(BoardController.rwtimer);
     clearInterval(BoardController.fftimer);
 });
@@ -104,6 +102,9 @@ function calcDims() {
     var space_offset = player_offset + player_height;
     var board_offset = space_offset + space_height;
 
+    $('.lists').css('height', (h - 2*nav_height) + 'px');
+    $('.lists').css('top', info_offset+'px');
+
     $('#top_nav').css('height', nav_height+'px');
     $('#top_nav').css('top', nav_offset+'px');
     
@@ -132,12 +133,10 @@ function calcDims() {
     $('#bottom_nav').css('height', nav_height+'px');
     $('#bottom_nav').css('bottom', nav_offset+'px');
     
-    /*
     if (Board.board) {
         Board.board.resize();
         Board.applyTheme();
     }
-    */
 }
 
 var TopMenu = {
@@ -147,6 +146,13 @@ var TopMenu = {
 				m("div", {"class":"dropdown_content"},
 					[
 						m("a", {}, 
+							playername
+						),
+						m("a", {
+                                onclick: function(e) {
+                                    ficswrap.emit('command', 'getgame');
+                                }
+                            }, 
 							"get game"
 						),
 						m("a", {}, 
@@ -157,6 +163,14 @@ var TopMenu = {
 						),
 						m("a", {}, 
 							"unseek"
+						),
+						m("a", {
+                                onclick: function(e) {
+                                    ficswrap.emit('command', 'who');
+                                    m.route.set('/playerlist');
+                                }
+                            }, 
+							"players"
 						),
 						m("a", {
                                 onclick: function(e) {
@@ -171,9 +185,6 @@ var TopMenu = {
 						),
 						m("a", {}, 
 							"themes"
-						),
-						m("a", {}, 
-							"players"
 						),
 						m("a", {}, 
 							"relays"
@@ -240,10 +251,69 @@ var Lobby = {
     }
 }
 
-var GameList = {
-    lines: [],
 
-    oninit: function(vnode) {
+var Finger = {
+	text: '',
+    oncreate: function(vnode) {
+        calcDims();
+    },
+    onupdate: function(vnode) {
+        calcDims();
+    },
+    view: function(vnode) {
+		var line1 = Finger.text.split('\n')[0];
+        Finger.name = line1.split(/\s/).pop().split(':')[0].split('(')[0];
+        console.log('Finger.name');
+        console.log(Finger.name);
+        return m("div", {"id":"page"},
+                    m('div', {'id': 'top_nav', 'class': 'evenly_spaced nav_container'},
+                        [
+                            m(TopMenu),
+                            m(ThemeSwitcher),
+                        ]
+                     ),
+                m('div', {'id':'lists','class':'lists'},
+                    m('pre', {id:'lists2'},
+						Finger.text
+                    )
+                ),
+                m('div', {'id': 'bottom_nav', 'class': 'evenly_spaced nav_container'},
+                    [
+
+                        m('a', {onclick: function() {
+                            ficswrap.emit('command', 'match '+Finger.name);
+                            return false;
+                        }}, 
+                            'Ma'),
+
+                        m('a', {onclick: function() {
+                            ficswrap.emit('command', 'follow '+Finger.name);
+                            return false;
+                        }}, 
+                            'Fol'),
+
+                        m('a', {onclick: function() {
+                            return false;
+                        }}, 
+                            'Te'),
+
+                        m('a', {onclick: function() {
+                            return false;
+                        }}, 
+                            'Me'),
+
+
+
+                    ]
+                 ),
+        );
+
+    }
+}
+
+var PlayerList = {
+    oncreate: function(vnode) {
+        calcDims();
     },
     view: function(vnode) {
         return m("div", {"id":"page"},
@@ -253,7 +323,75 @@ var GameList = {
                             m(ThemeSwitcher),
                         ]
                      ),
-                m('div', {'id':'lists'},
+                m('div', {'id':'lists','class':'lists'},
+                    m('pre', {id:'lists2'},
+                        Array.from(players).map( x => {
+                                return [m('a', {'href':'#', 'class':'list-item', 'style':'color:orange',
+                                        'onclick':function(e) {
+                                            $(this).css('color', 'red');
+                                            m.route.set('/finger');
+                                            ficswrap.emit('command', 'finger ' + x[2]);
+                                            return false;
+                                        }},
+                                        x.join('') ),
+                                        m('br')];
+                        })
+                    )
+                ),
+                m('div', {'id': 'bottom_nav', 'class': 'evenly_spaced nav_container'},
+                    [
+                        m('a', {onclick: listsPageUp},
+                            '^'),
+
+                        m('a', {onclick: function() {
+                            ficswrap.emit('command', 'who');
+                            return false;
+                        }}, 
+                            'All'),
+
+                        m('a', {onclick: function() {
+                            ficswrap.emit('command', 'who a');
+                            return false;
+                        }}, 
+                            'Av'),
+
+                        m('a', {onclick: function() {
+                            ficswrap.emit('command', 'who R');
+                            return false;
+                        }}, 
+                            'Reg'),
+
+                        m('a', {onclick: function() {
+                            ficswrap.emit('command', 'who U');
+                            return false;
+                        }}, 
+                            'Unr'),
+
+                        m('a', {onclick: listsPageDown},
+                            'v'),
+
+                    ]
+                 ),
+        );
+
+    }
+}
+
+var GameList = {
+    lines: [],
+
+    oncreate: function(vnode) {
+        calcDims();
+    },
+    view: function(vnode) {
+        return m("div", {"id":"page"},
+                    m('div', {'id': 'top_nav', 'class': 'evenly_spaced nav_container'},
+                        [
+                            m(TopMenu),
+                            m(ThemeSwitcher),
+                        ]
+                     ),
+                m('div', {'id':'lists','class':'lists'},
                     m('pre', {id:'lists2'},
                         Array.from(GameList.lines).map( x => {
                             if (x.replace(/[\s\n\t\r\x07]*/g,'')) {
@@ -271,11 +409,60 @@ var GameList = {
                             }
                         })
                     )
-                )
+                ),
+                m('div', {'id': 'bottom_nav', 'class': 'evenly_spaced nav_container'},
+                    [
+                        m('a', {onclick: listsPageUp},
+                            '^'),
+
+                        m('a', {onclick: function() {
+                            ficswrap.emit('command', 'games /bsl');
+                            return false;
+                        }}, 
+                            'ALL'),
+
+                        m('a', {onclick: function() {
+                            ficswrap.emit('command', 'games /bl');
+                            return false;
+                        }}, 
+                            'BLZ'),
+
+                        m('a', {onclick: function() {
+                            ficswrap.emit('command', 'games /s');
+                            return false;
+                        }}, 
+                            'RPD'),
+
+                        m('a', {onclick: function() {
+                            ficswrap.emit('command', 'games /e');
+                            return false;
+                        }}, 
+                            'EX'),
+
+                        m('a', {onclick: listsPageDown},
+                            'v'),
+
+                    ]
+                 ),
         );
 
-    }
+    },
 }
+
+function listsPageUp() {
+    var cur_pos = $('#lists').scrollTop();
+    var scroll_amt = $('#lists').height() * .95;
+    var new_pos = cur_pos - scroll_amt;
+    $('#lists').scrollTop(new_pos);
+};
+
+function listsPageDown() {
+    var cur_pos = $('#lists').scrollTop();
+    var scroll_amt = $('#lists').height() * .95;
+    var new_pos = cur_pos + scroll_amt;
+    $('#lists').scrollTop(new_pos);
+};
+
 
 function toMinutes(seconds) {
 	var seconds = parseInt(seconds);
@@ -475,9 +662,6 @@ var Board = {
         if (i == -1) {
             Board.board.position(game.startfen, animate);
         } else {
-            if (i == -2) {
-                i = game.chess.history().length - 1;
-            }
             if (game.empty_square) { // piece is hovering
                 Board.board.position(game.fens[i], animate);
                 var pos = Board.board.position();
@@ -504,8 +688,11 @@ var Board = {
 
     applyTheme: function() {
         var game = gamemap.get(Board.game_num);
-        console.log('game.theme');
-        console.log(game.theme);
+        if ( game.human_color === 'b' ) {
+            Board.board.flip();
+            game.top_is_black = false;
+        }
+
         $('#board').find('.white-1e1d7').css('background-color', tinycolor(game.theme.light_rgba));
         $('#board').find('.white-1e1d7').css('color', tinycolor(game.theme.dark_rgba));
         $('#board').find('.black-3c85d').css('background-color', tinycolor(game.theme.dark_rgba));
@@ -515,14 +702,20 @@ var Board = {
         $('#board').find('.board-b72b1').css('background-repeat', 'no-repeat');
         $('#board').find('.board-b72b1').css('background-position', 'center');
         $('#board').find('.board-b72b1').css('background-size', 'cover');
+
     },
+
+
+
+
+
 
     oncreate: function(vnode) {
         console.log('IN BOARD ONCREATE');
         console.log('game_num is '+Board.game_num);
         Board.createChessboard();
         Board.applyTheme();
-        Board.goToMove(Board.game_num, -2);
+        //Board.goToMove(Board.game_num, -2);
         runClock(Board.game_num);
     },
     oninit: function(vnode) {
@@ -538,16 +731,9 @@ var Board = {
             Board.game_num = vnode.attrs.game_num;
             Board.createChessboard();
             Board.applyTheme();
-            Board.goToMove(Board.game_num, -2);
+            //Board.goToMove(Board.game_num, -2);
             runClock(Board.game_num);
-            //if ( !$('#board').children().length ) {
-            //    Board.createChessboard();
-            //}
         }
-        //console.log('game_num is '+Board.game_num);
-        //Board.applyTheme();
-        //Board.goToMove(Board.game_num, -2);
-        //runClock(Board.game_num);
     },
     view: function(vnode) {
         var game = gamemap.get(Board.game_num);
@@ -621,12 +807,6 @@ var Board = {
 					),
 				]
         });
-    }
-    ,
-    test: function(attrs) {
-        console.log('YYYYYYYYYYYYYYYIIIIIIIIIIIIIIIIIPPPPPPPPPPPPPPPPPEEEEEEEEEEEEEEEEEEEEEEE');
-        console.log(this);
-        console.log(attrs.game_num);
     }
 }
     
@@ -719,11 +899,11 @@ var BoardController = {
                                 'F'),
 
                             //m('a', {onmousedown: BoardController.rewind, onmouseup: () => clearInterval(BoardController.rwtimer)},
-                            m('a', {onmousedown: BoardController.rewind},
+                            m('a', {onmousedown: BoardController.rewind, onclick: BoardController.moveBack},
                                 '<<'),
 
                             //m('a', {onmousedown: BoardController.fastforward, onmouseup: () => clearInterval(BoardController.fftimer)},
-                            m('a', {onmousedown: BoardController.fastforward},
+                            m('a', {onmousedown: BoardController.fastforward, onclick: BoardController.moveForward},
                                 '>>'),
 
                         ]
@@ -733,8 +913,21 @@ var BoardController = {
 				]
 			)
     },
+    moveBack: function() {
+        var game = gamemap.get(BoardController.cur_game_num);
+        if (game.current_move_index > -1) {
+            Board.goToMove(game.game_num, game.current_move_index - 1);
+        }
+        return false;
+    },
+    moveForward: function() {
+        var game = gamemap.get(BoardController.cur_game_num);
+        if (game.current_move_index < game.chess.history().length - 1) {
+            Board.goToMove(game.game_num, game.current_move_index + 1);
+        }
+        return false;
+    },
     rewind: function() {
-
         var game = gamemap.get(BoardController.cur_game_num);
         if (game.current_move_index > -1) {
             BoardController.rwtimer = setInterval( function() {
@@ -742,7 +935,7 @@ var BoardController = {
                                         Board.goToMove(game.game_num, game.current_move_index - 1);
                                     }
                                     m.redraw();
-            }, 150);
+            }, 75);
         }
         return false;
 
@@ -758,7 +951,7 @@ var BoardController = {
                                         Board.goToMove(game.game_num, game.current_move_index + 1);
                                     }
                                     m.redraw();
-            }, 150);
+            }, 75);
         }
         return false;
     },
@@ -772,8 +965,11 @@ m.route(root, "/login", {
     "/gamelist": GameList,
     "/login": Login,
     "/board_controller": BoardController,
+    "/playerlist": PlayerList,
+    "/finger": Finger,
 })
 
+var human_game = null;
 
 
 var default_themes = [
@@ -799,6 +995,8 @@ var soundmap = {
 };
 
 var themes;
+var playername = '';
+var players = [];
 
 function loadThemes() {
     themes = Cookies.get('themes');
@@ -824,8 +1022,6 @@ ficswrap.on("logged_in", function(msg) {
     Login.mid_attempt = false;
 
     loadThemes();
-
-    console.log(themes);
 
     m.request({
         method: 'GET',
@@ -855,19 +1051,6 @@ ficswrap.on("logged_in", function(msg) {
     m.route.set('/lobby');
 });
 
-/*
-ficswrap.on('login_success', function(msg) {
-    console.log('in ficswrap onnnnnnnnn login_success');
-    console.log(msg);
-    Login.mid_attempt = false;
-
-
-    m.route.set('/lobby');
-});
-*/
-
-
-
 
 
 ficswrap.on("result", function(msg) {
@@ -894,7 +1077,12 @@ ficswrap.on("result", function(msg) {
 
         // variables command result
         } else if (ficsobj.cmd_code === 143) {
-            //console.log(ficsobj.fullbody);
+            var info = ficsobj.body.split(':')[0].split(/\s+/);
+            playername = info[info.length-1];
+            m.redraw();
+            
+            console.log('the players name is');
+            console.log(playername);
 
         // moves command result
         } else if (ficsobj.cmd_code === 77) {
@@ -907,6 +1095,37 @@ ficswrap.on("result", function(msg) {
                 //BoardController.cur_game_num = game_num;
                 m.route.set('/board_controller?cur_game_num='+game_num);
             }
+        // finger command result
+        } else if (ficsobj.cmd_code === 37) {
+			Finger.text = ficsobj.body;
+			m.redraw();
+        // who command result
+        } else if (ficsobj.cmd_code === 146) {
+
+			var cols = [[],[],[]];
+			lines = ficsobj.body.split(/[\n\r]/).map( l => {
+				var items = l.split(/\s\s+/);
+				for (i=0; i<items.length; i++) {
+					if (items[i] && !/^ /.test(items[i])) {
+						cols[i].push(items[i]);
+					}
+				}
+			})
+			players = [];
+			cols.map( col => {
+				col.map( it => {
+					var re = /[\^~:#. &]/;
+					var stat = it.match(re)[0] ;
+					var sp = it.split(stat);
+					var sp2 = sp[1].split('(');
+					var name = sp2[0]
+					var extra = sp2[1] ? '('+sp2[1] : ''
+					var p = [sp[0], stat, name, extra];
+					players.push(p);
+				})
+			})
+
+            m.route.set('/playerlist');
         }
     }
     
@@ -996,12 +1215,13 @@ ficswrap.on("result", function(msg) {
 
                     var whose_move = ['w','b'][new_move_index % 2];
 
-                    console.log('#board');
-                    console.log($('#board'));
-                    console.log($('#board').length);
 
-                    //if ( $('#board').children().length ) {
-                    if ( Board.game_num === game.game_num ) {
+                    console.log('move_indexes');
+                    console.log('new_move_index:');
+                    console.log(new_move_index);
+                    console.log('game.current_move_index:');
+                    console.log(game.current_move_index);
+                    if ( Board.game_num === game.game_num && new_move_index == game.current_move_index + 1) {
                         if (whose_move === game.human_color && !game.premove) { Board.goToMove(game_num, new_move_index, animate=false) }
                         else { Board.goToMove(game_num, new_move_index, animate=true); }
                     }

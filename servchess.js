@@ -99,12 +99,6 @@ io.on('connection', function(socket) {
         fics_telnet_params.username = msg[0];
         fics_telnet_params.password = msg[1];
 
-        console.log(fics_telnet_params.username);
-        console.log(fics_telnet_params.password);
-        //if ( /[Gg]uest/.test(msg[0]) ) {
-        //    fics_telnet_params.passwordPrompt = /Press return to enter the server as .*/;
-        //}
-
         fics_telnet.connect(fics_telnet_params).then(function(prompt) { 
             fics_telnet.send('set seek 0',{maxBufferLength:10000});
             fics_telnet.send('style 12',{maxBufferLength:10000});
@@ -138,7 +132,10 @@ io.on('connection', function(socket) {
                             
                             if (!cmd_num) {
                                 actual_data = actual_data.replace(/fics%/g, '').replace(/^[\s\n\r]+|[\s\n\r]+$/g,'');
-                                if (actual_data.length) socket.emit('result', actual_data);
+                                if (actual_data.length) {
+                                    console.log(actual_data);
+                                    socket.emit('result', actual_data);
+                                }
                             } else {
                                 bufparts.push(actual_data);
                                 if (last_part) {
@@ -168,45 +165,4 @@ io.on('connection', function(socket) {
     });
 
 
-    /*
-    socket.on('get', function(msg) {
-        console.log('in socket.on message');
-        console.log(socket.id);
-        console.log(msg);
-        if (msg === 'soundmap') {
-            var obj = {};
-            obj.ambience= [];
-            obj.gong= [];
-            obj.moves = [];
-            obj.captures = [];
-            obj.checks = [];
-            fs.readdir(staticroot + '/sound/ambience', (err, files) => {
-                if (files) files.forEach(file => {
-                    obj.ambience.push(file);
-                });
-                fs.readdir(staticroot + '/sound/gong', (err, files) => {
-                    if (files) files.forEach(file => {
-                        obj.gong.push(file);
-                    });
-                    fs.readdir(staticroot + '/sound/moves', (err, files) => {
-                        if (files) files.forEach(file => {
-                            obj.moves.push(file);
-                        });
-                        fs.readdir(staticroot + '/sound/captures', (err, files) => {
-                            if (files) files.forEach(file => {
-                                obj.captures.push(file);
-                            });
-                            fs.readdir(staticroot + '/sound/checks', (err, files) => {
-                                if (files) files.forEach(file => {
-                                    obj.checks.push(file);
-                                });
-                                socket.emit('soundmap',obj);
-                            })
-                        })
-                    })
-                })
-            })
-        }
-    });
-    */
 });

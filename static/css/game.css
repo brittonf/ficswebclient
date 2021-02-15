@@ -173,6 +173,41 @@ html, body {
 
 
 
+.lists{
+    width: 100vw;
+    position: absolute;
+    overflow: auto;
+}
+
+.top_info {
+    width: 100vw;
+    position: absolute;
+}
+
+.bottom_info {
+    width: 100vw;
+    position: absolute;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 .observe {
@@ -307,8 +342,8 @@ html, body {
 	height:100%;
 }
 
-#shellout, #lists {
-    height:calc(100% - 35px);
+#shellout {
+    position: absolute;
     overflow: auto; 
     white-space:nowrap;
     padding : 0 18px 0 3px;
