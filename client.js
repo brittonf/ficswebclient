@@ -139,13 +139,26 @@ function calcDims() {
     }
 }
 
-var TopMenu = {
+$( document ).on('click', function() { 
+    if (in_menu) {
+            $('#main_menu').css('display','none');
+            $('#board_menu').css('display','none');
+            in_menu = false;
+    }
+});
+
+in_menu = false;
+var MainMenu = {
     view: function(vnode) {
-        return m('a', {"class":"dropdown"}, 
-				'M',
-				m("div", {"class":"dropdown_content"},
+        return m('a', {"class":"dropdown","onclick": function(e) {
+            $('#main_menu').css('display','block');
+            in_menu = true;
+            return false;
+        }}, 
+				'MM',
+				m("div", {"id":"main_menu","class":"dropdown_content"},
 					[
-						m("a", {}, 
+						m("a", {"style":"color: lime"}, 
 							playername
 						),
 						m("a", {
@@ -230,9 +243,9 @@ var GameSwitcher = {
     }
 }
 
-var ThemeSwitcher = {
+var Notifier = {
     view: function(vnode) {
-        return m('a', {}, 'T');
+        return m('a', {}, 'NN');
     }
 }
 
@@ -242,8 +255,8 @@ var Lobby = {
         return m("div", {"id":"page"},
                     m('div', {'id': 'top_nav', 'class': 'evenly_spaced nav_container'},
                         [
-                            m(TopMenu),
-                            m(ThemeSwitcher),
+                            m(MainMenu),
+                            m(Notifier),
                         ]
                      )
         );
@@ -268,8 +281,8 @@ var Finger = {
         return m("div", {"id":"page"},
                     m('div', {'id': 'top_nav', 'class': 'evenly_spaced nav_container'},
                         [
-                            m(TopMenu),
-                            m(ThemeSwitcher),
+                            m(MainMenu),
+                            m(Notifier),
                         ]
                      ),
                 m('div', {'id':'lists','class':'lists'},
@@ -319,8 +332,8 @@ var PlayerList = {
         return m("div", {"id":"page"},
                     m('div', {'id': 'top_nav', 'class': 'evenly_spaced nav_container'},
                         [
-                            m(TopMenu),
-                            m(ThemeSwitcher),
+                            m(MainMenu),
+                            m(Notifier),
                         ]
                      ),
                 m('div', {'id':'lists','class':'lists'},
@@ -341,7 +354,7 @@ var PlayerList = {
                 m('div', {'id': 'bottom_nav', 'class': 'evenly_spaced nav_container'},
                     [
                         m('a', {onclick: listsPageUp},
-                            '^'),
+                            '^^^'),
 
                         m('a', {onclick: function() {
                             ficswrap.emit('command', 'who');
@@ -368,7 +381,7 @@ var PlayerList = {
                             'Unr'),
 
                         m('a', {onclick: listsPageDown},
-                            'v'),
+                            'vvv'),
 
                     ]
                  ),
@@ -387,8 +400,8 @@ var GameList = {
         return m("div", {"id":"page"},
                     m('div', {'id': 'top_nav', 'class': 'evenly_spaced nav_container'},
                         [
-                            m(TopMenu),
-                            m(ThemeSwitcher),
+                            m(MainMenu),
+                            m(Notifier),
                         ]
                      ),
                 m('div', {'id':'lists','class':'lists'},
@@ -838,19 +851,27 @@ var BoardController = {
 				[
                     m('div', {'id': 'top_nav', 'class': 'evenly_spaced nav_container'},
                         [
-                            m(TopMenu),
+                            m(MainMenu),
                             m(GameSwitcher),
-                            m(ThemeSwitcher),
+                            m(Notifier),
                         ]
                     ),
 	
                     m(Board, {game_num: BoardController.cur_game_num}),
 
+
+
+
+
                     m('div', {'id': 'bottom_nav', 'class': 'evenly_spaced nav_container'},
                         [
-                            m('a', {"class":"dropdown"}, 
-									'M',
-									m("div", {"class":"dropdown_content dropup"},
+                            m('a', {"class":"dropdown","onclick": function(e) {
+                                $('#board_menu').css('display','block');
+                                in_menu = true;
+                                return false;
+                            }},
+									'BM',
+									m("div", {"id":"board_menu","class":"dropdown_content dropup"},
 										[
 											m("a", {}, 
 												"abort"
