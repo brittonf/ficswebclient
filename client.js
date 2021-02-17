@@ -73,6 +73,7 @@ $( document ).on('mouseup', function() {
 });
 
 
+/*
 NAV_HEIGHT_SHARE = .05;
 PLAYER_HEIGHT_SHARE = .05;
 SPACE_HEIGHT_SHARE = .03;
@@ -133,6 +134,94 @@ function calcDims() {
     $('#bottom_nav').css('height', nav_height+'px');
     $('#bottom_nav').css('bottom', nav_offset+'px');
     
+    if (Board.board) {
+        Board.board.resize();
+        Board.applyTheme();
+    }
+}
+*/
+NAV_HEIGHT_SHARE = .04;
+PLAYER_HEIGHT_SHARE = .04;
+SPACE_HEIGHT_SHARE = .01;
+INFO_MIN_HEIGHT_SHARE = .09;
+BOARD_MAX_HEIGHT_SHARE = 1 - (NAV_HEIGHT_SHARE * 2) - (PLAYER_HEIGHT_SHARE * 2) - (SPACE_HEIGHT_SHARE * 2) - (INFO_MIN_HEIGHT_SHARE * 2);
+
+function calcDims() {
+    var w = $(window).width();
+    var h = $(window).height();
+
+    var board_height_share = w/h;
+    if ( board_height_share > BOARD_MAX_HEIGHT_SHARE ) {
+        board_height_share = BOARD_MAX_HEIGHT_SHARE;
+    }
+    var info_height_share = (1 - (2 * NAV_HEIGHT_SHARE) - (2 * PLAYER_HEIGHT_SHARE) - (2 * SPACE_HEIGHT_SHARE) - board_height_share) / 2;
+    
+    var nav_height = h * NAV_HEIGHT_SHARE;
+    var player_height = h * PLAYER_HEIGHT_SHARE;
+    var space_height = h * SPACE_HEIGHT_SHARE;
+    var info_height = h * info_height_share;
+    var board_height = h * board_height_share;
+    var board_width = w > board_height ? board_height : w;
+    board_width = board_width * .98;
+
+    var nav_offset = 0;
+    var info_offset = nav_height;
+    var player_offset = info_offset + info_height;
+    var space_offset = player_offset + player_height;
+    var board_offset = space_offset + space_height;
+
+
+    $('.nav_container').css('line-height', nav_height +'px');
+    $('.evenly_spaced').css('font-size', (nav_height * .6) +'px');
+
+    $('#centerer').css('height', (player_height*2 + space_height*2 + board_height + info_height*2) +'px');
+    $('#centerer').css('width', board_width+'px');
+    $('#centerer').css('top', info_offset+'px');
+
+    $('.lists').css('height', (h - 2*nav_height) + 'px');
+    $('.lists').css('top', info_offset+'px');
+
+    $('#top_nav').css('height', nav_height+'px');
+    $('#top_nav').css('top', nav_offset+'px');
+    
+    $('.top_info').css('height', info_height+'px');
+    $('.top_info').css('top', info_offset+'px');
+    $('.top_info').css('width', board_width+'px');
+    
+    $('.top_player').css('height', player_height+'px');
+    $('.top_player').css('top', player_offset+'px');
+    $('.top_player').css('width', board_width+'px');
+    
+    $('.top_space').css('height', space_height+'px');
+    $('.top_space').css('top', space_offset+'px');
+    $('.top_space').css('width', board_width+'px');
+
+    $('.board').css('height', board_height+'px');
+    $('.board').css('width', board_width+'px');
+    $('.board').css('top', board_offset+'px');
+
+    $('.bottom_space').css('height', space_height+'px');
+    $('.bottom_space').css('bottom', space_offset+'px');
+    $('.bottom_space').css('width', board_width+'px');
+
+    $('.bottom_player').css('height', player_height+'px');
+    $('.bottom_player').css('bottom', player_offset+'px');
+    $('.bottom_player').css('width', board_width+'px');
+    
+    $('.bottom_info').css('height', info_height+'px');
+    $('.bottom_info').css('bottom', info_offset+'px');
+    $('.bottom_info').css('width', board_width+'px');
+    
+    $('#bottom_nav').css('height', nav_height+'px');
+    $('#bottom_nav').css('bottom', nav_offset+'px');
+    
+    game = gamemap.get(Board.game_num);
+
+    $('#top_nav').css('background-color', tinycolor(game.theme.dark_rgba));
+    $('#bottom_nav').css('background-color', tinycolor(game.theme.dark_rgba));
+    $('.evenly_spaced a').css('color', tinycolor(game.theme.light_rgba));
+
+
     if (Board.board) {
         Board.board.resize();
         Board.applyTheme();
@@ -928,7 +1017,28 @@ var BoardController = {
                         ]
                     ),
 	
-                    m(Board, {game_num: BoardController.cur_game_num}),
+
+
+
+
+
+
+                    m("div", {"id":"centerer","class":"centerer"},
+                        m(Board, {game_num: BoardController.cur_game_num})
+                    ),
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
                     m('div', {'id': 'bottom_nav', 'class': 'evenly_spaced nav_container'},
