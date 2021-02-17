@@ -139,21 +139,26 @@ function calcDims() {
     }
 }
 
+function closeAllMenus() {
+    $('#main_menu').css('display','none');
+    $('#board_menu').css('display','none');
+    in_menu = false;
+}
 $( document ).on('click', function() { 
-    if (in_menu) {
-            $('#main_menu').css('display','none');
-            $('#board_menu').css('display','none');
-            in_menu = false;
-    }
+    closeAllMenus();
 });
 
 in_menu = false;
+
 var MainMenu = {
     view: function(vnode) {
         return m('a', {"class":"dropdown","onclick": function(e) {
-            $('#main_menu').css('display','block');
-            in_menu = true;
-            return false;
+            if ( !in_menu ) {
+                closeAllMenus();
+                $('#main_menu').css('display','block');
+                in_menu = true;
+                return false;
+            }
         }}, 
 				'MM',
 				m("div", {"id":"main_menu","class":"dropdown_content"},
@@ -168,14 +173,18 @@ var MainMenu = {
                             }, 
 							"get game"
 						),
-						m("a", {}, 
+                        m("a", {"onclick": () => ficswrap.emit('command','seek')}, 
 							"seek"
 						),
-						m("a", {}, 
+                        m("a", {"onclick": () => ficswrap.emit('command','sought all')}, 
 							"sought"
 						),
-						m("a", {}, 
-							"unseek"
+						m("a", {
+                                onclick: function(e) {
+                                    ficswrap.emit('command', 'follow /b');
+                                }
+                            }, 
+							"watch"
 						),
 						m("a", {
                                 onclick: function(e) {
@@ -193,17 +202,25 @@ var MainMenu = {
                             }, 
 							"games"
 						),
+                        /*
 						m("a", {}, 
-							"match"
+							"puzzles"
 						),
 						m("a", {}, 
-							"themes"
+							"tournaments"
 						),
 						m("a", {}, 
-							"relays"
+							"teams"
 						),
 						m("a", {}, 
-							"sound"
+							"OTB relays"
+						),
+						m("a", {}, 
+							"shouts/tells/channels"
+						),
+                        */
+						m("a", {}, 
+							"preferences"
 						),
 						m("a", {
                                 onclick: function(e) {
@@ -236,16 +253,21 @@ var GameSwitcher = {
         }
         return [
             m('a', {onclick: () => m.route.set('/board_controller?cur_game_num='+gnums_ordered[prev], null, {state: {key: Date.now()}})}, '<'),
-            //m('a', {onclick: () => {BoardController.cur_game_num = gnums_ordered[prev]; Board.game_num = gnums_ordered[prev]; m.redraw(); m.route.set('/board_controller');}}, '<'),
             m('a', {}, 'G'),
             m('a', {onclick: () => m.route.set('/board_controller?cur_game_num='+gnums_ordered[next], null, {state: {key: Date.now()}})}, '>'),
         ];
     }
 }
 
-var Notifier = {
+var Alerter = {
     view: function(vnode) {
-        return m('a', {}, 'NN');
+        var alerts = Alerts.offers_to.length || Alerts.offers_from.length ? true : false;
+        return m('a', {'style': alerts ? 'color:lime' : '','onclick':function(e) {
+                                            m.route.set('/alerts');
+                                            ficswrap.emit('command', 'pending');
+                                            return false;
+                                        }
+        }, 'NN');
     }
 }
 
@@ -256,9 +278,77 @@ var Lobby = {
                     m('div', {'id': 'top_nav', 'class': 'evenly_spaced nav_container'},
                         [
                             m(MainMenu),
-                            m(Notifier),
+                            m(Alerter),
                         ]
                      )
+        );
+
+    }
+}
+
+var Alerts = {
+    offers_to: [],
+    offers_from: [],
+    oncreate: function(vnode) {
+        calcDims();
+    },
+    onupdate: function(vnode) {
+        calcDims();
+    },
+
+
+
+
+
+
+    primp: function(s) {
+        //8: You are offering guesth a challenge: GuestRGRX (----) guesth (----) unrated blitz 2 12.
+        //13: guestg is offering a challenge: guestg (----) GuestRGRX (----) unrated blitz 2 12.
+
+        var parts = s.split(':');
+        var num = parts[0];
+        var txt = strip(parts[2]);
+        return {num:num, txt:txt};
+    },
+
+    view: function(vnode) {
+        return m("div", {"id":"page"},
+                    m('div', {'id': 'top_nav', 'class': 'evenly_spaced nav_container'},
+                        [
+                            m(MainMenu),
+                            m(Alerter),
+                        ]
+                     ),
+                m('div', {'id':'lists','class':'lists'},
+                    m('pre', {id:'lists2'},
+
+
+                        Alerts.offers_from.map( x => {
+                            var info = Alerts.primp(x);
+
+                            return m('div',{}, 
+                                m('a', {'onclick': () => {ficswrap.emit('command','accept '+info.num)}}, info.txt),
+                                m('a', {'style': 'color:red', 'onclick': () => {ficswrap.emit('command','decline '+info.num)}}, 'DECLINE'),
+                            );
+                        }),
+
+                        Alerts.offers_to.map( x => {
+                            var info = Alerts.primp(x);
+
+                            return m('div',{}, 
+                                m('a', {}, info.txt),
+                                m('a', {'style': 'color:red', 'onclick': () => {ficswrap.emit('command','withdraw '+info.num)}}, 'WITHDRAW'),
+                            );
+                        }),
+
+
+
+
+
+
+
+                    )
+                ),
         );
 
     }
@@ -276,13 +366,11 @@ var Finger = {
     view: function(vnode) {
 		var line1 = Finger.text.split('\n')[0];
         Finger.name = line1.split(/\s/).pop().split(':')[0].split('(')[0];
-        console.log('Finger.name');
-        console.log(Finger.name);
         return m("div", {"id":"page"},
                     m('div', {'id': 'top_nav', 'class': 'evenly_spaced nav_container'},
                         [
                             m(MainMenu),
-                            m(Notifier),
+                            m(Alerter),
                         ]
                      ),
                 m('div', {'id':'lists','class':'lists'},
@@ -297,7 +385,7 @@ var Finger = {
                             ficswrap.emit('command', 'match '+Finger.name);
                             return false;
                         }}, 
-                            'Ma'),
+                            'Chal'),
 
                         m('a', {onclick: function() {
                             ficswrap.emit('command', 'follow '+Finger.name);
@@ -308,12 +396,12 @@ var Finger = {
                         m('a', {onclick: function() {
                             return false;
                         }}, 
-                            'Te'),
+                            'Tel'),
 
                         m('a', {onclick: function() {
                             return false;
                         }}, 
-                            'Me'),
+                            'Msg'),
 
 
 
@@ -333,7 +421,7 @@ var PlayerList = {
                     m('div', {'id': 'top_nav', 'class': 'evenly_spaced nav_container'},
                         [
                             m(MainMenu),
-                            m(Notifier),
+                            m(Alerter),
                         ]
                      ),
                 m('div', {'id':'lists','class':'lists'},
@@ -401,7 +489,7 @@ var GameList = {
                     m('div', {'id': 'top_nav', 'class': 'evenly_spaced nav_container'},
                         [
                             m(MainMenu),
-                            m(Notifier),
+                            m(Alerter),
                         ]
                      ),
                 m('div', {'id':'lists','class':'lists'},
@@ -536,7 +624,6 @@ function stopClocks(game_num) {
     if (game) {
         clearInterval(game.clocks['w']);
         clearInterval(game.clocks['b']);
-        console.log('clock should be stopping for gamenum ' + game_num);
     } else {
         console.log('in stopClocks and game not found for game_num ' + game_num);
     }
@@ -668,8 +755,6 @@ var Board = {
             return;
         }
 
-        console.log('in goToMove, game_num is');
-        console.log(Board.game_num);
         var game = gamemap.get(Board.game_num);
         game.current_move_index = i;
         if (i == -1) {
@@ -687,8 +772,6 @@ var Board = {
                     game.empty_piece = null;
                 }
             } else {
-                console.log(game);
-                console.log(Board.board);
                 Board.board.position(game.fens[i], animate);
             }
 
@@ -724,27 +807,18 @@ var Board = {
 
 
     oncreate: function(vnode) {
-        console.log('IN BOARD ONCREATE');
-        console.log('game_num is '+Board.game_num);
         Board.createChessboard();
         Board.applyTheme();
-        //Board.goToMove(Board.game_num, -2);
         runClock(Board.game_num);
     },
     oninit: function(vnode) {
-        console.log('IN BOARD ONINIT');
-        console.log('game_num is '+Board.game_num);
         Board.game_num = vnode.attrs.game_num;
-        console.log('game_num is '+Board.game_num);
     },
     onupdate: function(vnode) {
-        console.log('IN BOARD ONUPDATE');
-        console.log('game_num is '+Board.game_num);
         if ( Board.game_num != vnode.attrs.game_num ) {
             Board.game_num = vnode.attrs.game_num;
             Board.createChessboard();
             Board.applyTheme();
-            //Board.goToMove(Board.game_num, -2);
             runClock(Board.game_num);
         }
     },
@@ -806,17 +880,19 @@ var Board = {
 
 
 					m("div", {"id":"bottom_info_"+Board.game_num,"class":"info_container bottom_info"}, 
+                        [
                             m('div', {'id':'result_'+Board.game_num,'class':'centerbold'},
-                                /*
-						        game.situ || game.result
-                                ?
-                                */
                                 game.situ + ' ' + game.result
-                                /*
-                                :
-                                'IN PROGRESS'
-                                */
+                            ),
+                            game.blurb
+                            ?
+                            m('div', {'class':'centerbold', 'style':'color:red'},
+                                game.blurb
                             )
+                            :
+                            null
+                        ]
+
 					),
 				]
         });
@@ -827,76 +903,124 @@ var BoardController = {
     cur_game_num: '',
 
     oncreate: function(vnode) {
-        console.log('IN BOARDCPONTROLLER ONCREATE');
-        console.log('cur_game_num is '+BoardController.cur_game_num);
         calcDims();
     },
     oninit: function(vnode) {
         if ( vnode.attrs.cur_game_num ) {
             BoardController.cur_game_num = vnode.attrs.cur_game_num;
         }
-        console.log('IN BOARDCONTROLLER ONINIT');
-        console.log('cur_game_num is '+BoardController.cur_game_num);
     },
     onupdate: function(vnode) {
         if ( BoardController.cur_game_num != vnode.attrs.cur_game_num ) {
             BoardController.cur_game_num = vnode.attrs.cur_game_num;
         }
-        console.log('IN BOARDCONTOLRRER ONUPDATE');
-        console.log('cur_game_num is '+BoardController.cur_game_num);
     },
     view: function(vnode) {
         var game = gamemap.get(BoardController.cur_game_num);
+        var human_in_progress = game.human_color != 'x' && !game.result;
         return m("div", {"id":"page"},
 				[
                     m('div', {'id': 'top_nav', 'class': 'evenly_spaced nav_container'},
                         [
                             m(MainMenu),
                             m(GameSwitcher),
-                            m(Notifier),
+                            m(Alerter),
                         ]
                     ),
 	
                     m(Board, {game_num: BoardController.cur_game_num}),
 
 
-
-
-
                     m('div', {'id': 'bottom_nav', 'class': 'evenly_spaced nav_container'},
                         [
                             m('a', {"class":"dropdown","onclick": function(e) {
-                                $('#board_menu').css('display','block');
-                                in_menu = true;
-                                return false;
+
+                                if ( !in_menu ) {
+                                    closeAllMenus();
+                                    $('#board_menu').css('display','block');
+                                    in_menu = true;
+                                    return false;
+                                }
+
+
+
+
                             }},
 									'BM',
 									m("div", {"id":"board_menu","class":"dropdown_content dropup"},
 										[
-											m("a", {}, 
+                                            
+
+
+
+                                            human_in_progress
+                                            ?
+                                            [
+                                                m("a", {"onclick": () => ficswrap.emit('command','draw')}, 
+                                                    "draw"
+                                                ),
+                                                m("a", {"onclick": () => ficswrap.emit('command','resign')}, 
+                                                    "resign"
+                                                ),
+                                            ]
+                                            :
+                                            null,
+
+
+
+
+
+                                            game.human_color != 'x' && game.result
+                                            ?
+                                            [
+                                                m("a", {"onclick": () => ficswrap.emit('command','rematch')}, 
+                                                    "rematch"
+                                                ),
+                                                m("a", {"onclick": () => ficswrap.emit('command','getgame')}, 
+                                                    "get new game"
+                                                ),
+                                            ]
+                                            :
+                                            null,
+
+
+
+                                            game.human_color != 'x' && game.chess.history().length < 2 && !game.result
+                                            ?
+											m("a", {"onclick": () => ficswrap.emit('command','abort')}, 
 												"abort"
-											),
-											m("a", {}, 
-												"remove"
-											),
+											)
+                                            :
+                                            null,
+
+
+
+                                            !human_in_progress 
+                                            ?
+                                            [
+                                                m("a", {}, 
+                                                    "analyze"
+                                                ),
+                                                m("a", {}, 
+                                                    "remove"
+                                                ),
+                                            ]
+                                            :
+                                            null,
+
+
+
+
+
 											m("a", {}, 
 												"share/export"
 											),
-											m("a", {}, 
-												"get game"
-											),
-											m("a", {}, 
-												"seek"
-											),
-											m("a", {}, 
-												"rematch"
-											),
-											m("a", {}, 
-												"draw"
-											),
-											m("a", {}, 
-												"resign"
-											),
+
+
+
+
+
+
 										]
 									)
 								),
@@ -988,9 +1112,9 @@ m.route(root, "/login", {
     "/board_controller": BoardController,
     "/playerlist": PlayerList,
     "/finger": Finger,
+    "/alerts": Alerts,
 })
 
-var human_game = null;
 
 
 var default_themes = [
@@ -1038,6 +1162,7 @@ function highlightSquares(board_div, color, move=null, clear=false) {
     }
 }
 
+function strip(s) { return s.replace(/^\s*/, '').replace(/\s*$/, '') }
 
 ficswrap.on("logged_in", function(msg) {
     Login.mid_attempt = false;
@@ -1072,7 +1197,15 @@ ficswrap.on("logged_in", function(msg) {
     m.route.set('/lobby');
 });
 
-
+function getActiveHumanGameNum() {
+    var gnum = ''
+    Array.from(gamemap.values()).map( g => {
+        if ( g.human_color != 'x' && !g.result ) {
+            gnum = g.game_num;
+        }
+    });
+    return gnum;
+}
 
 ficswrap.on("result", function(msg) {
     console.log(msg);
@@ -1084,27 +1217,94 @@ ficswrap.on("result", function(msg) {
         showout = true;
     }
 
-    if (ficsobj.cmd_code) {
+    if ( !ficsobj.cmd_code ) {
+        if ( ficsobj.body.match(/offers you a draw./) ) {
+            var g = gamemap.get(getActiveHumanGameNum())
+            if ( g ) {
+                g.blurb = strip(ficsobj.body);
+                m.redraw();
+            }
+        }
+
+        if ( ficsobj.body.match(/declines the draw request/) ) {
+            var g = gamemap.get(getActiveHumanGameNum())
+            if ( g ) {
+                //g.blurb = strip(ficsobj.body);
+                g.blurb = '';
+                m.redraw();
+            }
+        }
+
+        if ( ficsobj.body.match(/You decline the draw request from/) ) {
+            var g = gamemap.get(getActiveHumanGameNum())
+            if ( g ) {
+                g.blurb = '';
+                m.redraw();
+            }
+        }
+
+
+
+        if ( ficsobj.body.match(/^Challenge: |withdraws the match offer|updates the match request|declines the match|declines your match|accepts the match offer/) ) {
+            ficswrap.emit('command', 'pending');
+        }
+    }
+    if ( ficsobj.cmd_code ) {
         cmd_code = ficsobj.cmd_code;
         // games command result
         if (ficsobj.cmd_code === 43) {
-            //renderGameList(ficsobj.body.split('\n'));
             GameList.lines = ficsobj.body.split('\n');
             m.redraw()
 
         // sought command result
         } else if (ficsobj.cmd_code === 157) {
             renderSoughtList(ficsobj.body.split('\n'));
-
         // variables command result
         } else if (ficsobj.cmd_code === 143) {
             var info = ficsobj.body.split(':')[0].split(/\s+/);
             playername = info[info.length-1];
             m.redraw();
-            
-            console.log('the players name is');
-            console.log(playername);
-
+        // decline command result
+        } else if (ficsobj.cmd_code === 33) {
+            if ( ficsobj.body.match(/You decline the match offer/) ) {
+                ficswrap.emit('command', 'pending');
+            }
+        // draw command result
+        } else if (ficsobj.cmd_code === 34) {
+            var g = gamemap.get(getActiveHumanGameNum());
+            console.log('draw returned');
+            console.log('gamemap is');
+            console.log(gamemap);
+            console.log('human_game is');
+            console.log(g);
+            if ( g ) {
+                if ( ficsobj.body.match(/Draw request sent|You are already offering a draw/) ) {
+                    g.blurb = 'Draw offer sent...';
+                    m.redraw();
+                } else {
+                    g.blurb = '';
+                    m.redraw();
+                }
+            }
+        // gamemove command result
+        } else if (ficsobj.cmd_code === 1) {
+            if ( ficsobj.body.match(/You decline the draw request from/) ) {
+                var g = gamemap.get(getActiveHumanGameNum())
+                if ( g ) {
+                    g.blurb = '';
+                    m.redraw();
+                }
+            }
+        // withdraw command result
+        } else if (ficsobj.cmd_code === 147) {
+            if ( ficsobj.body.match(/You withdraw the match offer/) ) {
+                ficswrap.emit('command', 'pending');
+            }
+        // match command result
+        } else if (ficsobj.cmd_code === 73) {
+            if ( ficsobj.body.match(/^Issuing:/) ) {
+                ficswrap.emit('command', 'pending');
+            }
         // moves command result
         } else if (ficsobj.cmd_code === 77) {
             var movesobj = window.MOVESPARSER.parse(ficsobj.body);
@@ -1116,6 +1316,30 @@ ficswrap.on("result", function(msg) {
                 //BoardController.cur_game_num = game_num;
                 m.route.set('/board_controller?cur_game_num='+game_num);
             }
+        // pending command result
+        } else if (ficsobj.cmd_code === 87) {
+            var which = '';
+            Alerts.offers_to = [];
+            Alerts.offers_from = [];
+			lines = ficsobj.body.split(/[\n\r]/).map( l => {
+                if ( l.match(/^Offers to other players:/) ) {
+                    which = 'to';
+                    return;
+                }
+                if ( l.match(/^Offers from other players:/) ) {
+                    which = 'from';
+                    return;
+                }
+                if ( l.match(/^  /) ) {
+                    if ( which === 'to' ) {
+                        Alerts.offers_to.push(strip(l));
+                    }
+                    if ( which === 'from' ) {
+                        Alerts.offers_from.push(strip(l));
+                    }
+                }
+			})
+			m.redraw();
         // finger command result
         } else if (ficsobj.cmd_code === 37) {
 			Finger.text = ficsobj.body;
@@ -1178,19 +1402,45 @@ ficswrap.on("result", function(msg) {
         var game_num = ficsobj.game_info.game_num;
         var game = gamemap.get(game_num);
         game.result = ficsobj.game_info.result;
+        game.blurb = ''; //kind of a hacky place to put this
+
+
+/*
+Right after a follow high rated ended: (1233 is line above)
+
+client.js:1233 Uncaught TypeError: Cannot set property 'result' of undefined
+    at Socket.eval (client.js:1233)
+    at Socket../node_modules/component-emitter/index.js.Emitter.emit (index.js:145)
+    at Socket.emitEvent (socket.js:242)
+    at Socket.onevent (socket.js:229)
+    at Socket.onpacket (socket.js:193)
+    at Manager.<anonymous> (index.js:21)
+    at Manager../node_modules/component-emitter/index.js.Emitter.emit (index.js:145)
+    at Manager.ondecoded (manager.js:209)
+    at Decoder.<anonymous> (index.js:21)
+    at Decoder../node_modules/component-emitter/index.js.Emitter.emit (index.js:145)
+
+
+
+ */
+
+
+
+
+
+
+
         game.situ = ficsobj.game_info.situ;
         //if ( !game.situ ) { game.situ = 'IN PROGRESS'; }
 
         if (['1-0','0-1','1/2-1/2'].indexOf(game.result) != -1) {
             soundmap.gong[Math.floor(Math.random() * soundmap.gong.length)].play();
             stopClocks(game_num);
-            console.log('did the clocks stop?');
         }
         m.redraw();
     }
 
     if (ficsobj.observe) {
-        console.log('qwe');
         var game_num = ficsobj.game_info.game_num;
         //if (gamemap.get(game_num)) {    //FIXME
         //    removeGame(game_num);
@@ -1198,10 +1448,8 @@ ficswrap.on("result", function(msg) {
         gamemap.set(game_num, new Game(ficsobj.s12, ficsobj.game_info));
         gamemap.get(game_num).theme = themes[Math.floor(Math.random() * themes.length)];
         if (ficsobj.s12.my_rel === '1' || ficsobj.s12.my_rel === '-1') { 
-            human_game = gamemap.get(game_num); 
-            human_game.human_color =  (ficsobj.s12.whose_move === 'B' && ficsobj.s12.my_rel === '1') || (ficsobj.s12.whose_move === 'W' && ficsobj.s12.my_rel === '-1') ? 'b' : 'w';
+            gamemap.get(game_num).human_color =  (ficsobj.s12.whose_move === 'B' && ficsobj.s12.my_rel === '1') || (ficsobj.s12.whose_move === 'W' && ficsobj.s12.my_rel === '-1') ? 'b' : 'w';
         }
-        console.log('qwe2');
         ficswrap.emit('command', 'moves ' + game_num);
     } else if (ficsobj.style12) {
         var game_num = ficsobj.s12.game_num;

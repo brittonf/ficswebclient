@@ -7,7 +7,10 @@ class Game {
 
         this.human_color = 'x';
 
-        this.situ = game_info.situ ? game_info.situ : 'IN PROGRESS';
+        this.blurb = '';
+
+        //this.situ = game_info.situ ? game_info.situ : 'IN PROGRESS';
+        this.situ = !game_info.situ || game_info.situ.match(/^Creating/) ? 'IN PROGRESS' : game_info.situ;
         this.result = game_info.result ? game_info.result : '';
         this.game_num = game_info.game_num;
         this.white_player = game_info.white_player;
