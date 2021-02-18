@@ -17,6 +17,19 @@ var Login = {
             }
         }
     },
+    login : function() {
+        var auto_login = document.getElementById('autocheck').checked;
+        if ( auto_login ) {
+            Cookies.set('auto_login', '1');
+            Cookies.set('username', Login.username);
+            Cookies.set('password', Login.password);
+        } else {
+            Cookies.remove('auto_login');
+            Cookies.remove('username');
+            Cookies.remove('password');
+        }
+        ficswrap.emit('login', [Login.username, Login.password]);
+    },
     view : function(vnode) {
         return Login.mid_attempt ?
             m('div', {}, `Attempting login for ${Cookies.get('username')}...`)
@@ -24,28 +37,18 @@ var Login = {
             m( 'table', [ 
            m('tr', [
                m('td', 'Username:'),
-               m('td', m('input', {type: 'text', size: '12', value: Login.username, oninput: (e) => Login.username = e.target.value})
+               m('td', m('input', {type: 'text', size: '12', value: Login.username, oninput: (e) => Login.username = e.target.value, onkeypress: (e) => {if (e.which == 13) Login.login()}})
                    ), 
            ]),
            m('tr', [
                m('td', 'Password:'),
-               m('td', m('input', {type: 'password', size: '12', value: Login.password, oninput: (e) => Login.password = e.target.value})
+               m('td', m('input', {type: 'password', size: '12', value: Login.password, oninput: (e) => Login.password = e.target.value, onkeypress: (e) => {if (e.which == 13) Login.login()}})
                    ), 
            ]),
            m('tr', [
                m('td', {colspan: 2, align: 'center'}, 
-                   m('button',  {onclick: (e) => {
-                            var auto_login = document.getElementById('autocheck').checked;
-                            if ( auto_login ) {
-                                Cookies.set('auto_login', '1');
-                                Cookies.set('username', Login.username);
-                                Cookies.set('password', Login.password);
-                            } else {
-                                Cookies.remove('auto_login');
-                                Cookies.remove('username');
-                                Cookies.remove('password');
-                            }
-                            ficswrap.emit('login', [Login.username, Login.password]);
+                   m('button',  {id:'logbutt', onclick: (e) => {
+                            Login.login();
                             return false;
                        }
                    }, 'login')
@@ -73,73 +76,31 @@ $( document ).on('mouseup', function() {
 });
 
 
-/*
-NAV_HEIGHT_SHARE = .05;
-PLAYER_HEIGHT_SHARE = .05;
-SPACE_HEIGHT_SHARE = .03;
-INFO_MIN_HEIGHT_SHARE = .05;
-BOARD_MAX_HEIGHT_SHARE = 1 - (NAV_HEIGHT_SHARE * 2) - (PLAYER_HEIGHT_SHARE * 2) - (SPACE_HEIGHT_SHARE * 2) - (INFO_MIN_HEIGHT_SHARE * 2);
+$(document).on('keydown', function(e) {
+    if (!Board.game_num) return;
 
-function calcDims() {
-    var w = $(window).width();
-    var h = $(window).height();
+    if ( $.inArray(e.which, [37,38,39,40]) == -1 ) return;
 
-    var board_height_share = w/h;
-    if ( board_height_share > BOARD_MAX_HEIGHT_SHARE ) {
-        board_height_share = BOARD_MAX_HEIGHT_SHARE;
+    e.preventDefault();           
+    
+    var game = gamemap.get(Board.game_num);
+    if (!game) return;
+
+    if (e.which == 37) {            // left
+        if (game.current_move_index > -1) {
+            Board.goToMove(Board.game_num, game.current_move_index - 1);
+        }
+    } else if (e.which == 39) {     //right
+        if (game.current_move_index < game.chess.history().length - 1) {
+            Board.goToMove(Board.game_num, game.current_move_index + 1);
+        }
+    } else if (e.which == 38) {     //up
+        Board.goToMove(Board.game_num, -1);
+    } else if (e.which == 40) {     //down
+        Board.goToMove(Board.game_num, game.chess.history().length - 1);
     }
-    var info_height_share = (1 - (2 * NAV_HEIGHT_SHARE) - (2 * PLAYER_HEIGHT_SHARE) - (2 * SPACE_HEIGHT_SHARE) - board_height_share) / 2;
-    
-    var nav_height = h * NAV_HEIGHT_SHARE;
-    var player_height = h * PLAYER_HEIGHT_SHARE;
-    var space_height = h * SPACE_HEIGHT_SHARE;
-    var info_height = h * info_height_share;
-    var board_height = h * board_height_share;
-    var board_width = w > board_height ? board_height : w;
+});
 
-    var nav_offset = 0;
-    var info_offset = nav_height;
-    var player_offset = info_offset + info_height;
-    var space_offset = player_offset + player_height;
-    var board_offset = space_offset + space_height;
-
-    $('.lists').css('height', (h - 2*nav_height) + 'px');
-    $('.lists').css('top', info_offset+'px');
-
-    $('#top_nav').css('height', nav_height+'px');
-    $('#top_nav').css('top', nav_offset+'px');
-    
-    $('.top_info').css('height', info_height+'px');
-    $('.top_info').css('top', info_offset+'px');
-    
-    $('.top_player').css('height', player_height+'px');
-    $('.top_player').css('top', player_offset+'px');
-    
-    $('.top_space').css('height', space_height+'px');
-    $('.top_space').css('top', space_offset+'px');
-
-    $('.board').css('height', board_height+'px');
-    $('.board').css('width', board_width+'px');
-    $('.board').css('top', board_offset+'px');
-
-    $('.bottom_space').css('height', space_height+'px');
-    $('.bottom_space').css('bottom', space_offset+'px');
-
-    $('.bottom_player').css('height', player_height+'px');
-    $('.bottom_player').css('bottom', player_offset+'px');
-    
-    $('.bottom_info').css('height', info_height+'px');
-    $('.bottom_info').css('bottom', info_offset+'px');
-    
-    $('#bottom_nav').css('height', nav_height+'px');
-    $('#bottom_nav').css('bottom', nav_offset+'px');
-    
-    if (Board.board) {
-        Board.board.resize();
-        Board.applyTheme();
-    }
-}
-*/
 NAV_HEIGHT_SHARE = .04;
 PLAYER_HEIGHT_SHARE = .04;
 SPACE_HEIGHT_SHARE = .01;
@@ -217,11 +178,6 @@ function calcDims() {
     
     game = gamemap.get(Board.game_num);
 
-    $('#top_nav').css('background-color', tinycolor(game.theme.dark_rgba));
-    $('#bottom_nav').css('background-color', tinycolor(game.theme.dark_rgba));
-    $('.evenly_spaced a').css('color', tinycolor(game.theme.light_rgba));
-
-
     if (Board.board) {
         Board.board.resize();
         Board.applyTheme();
@@ -252,30 +208,27 @@ var MainMenu = {
 				'MM',
 				m("div", {"id":"main_menu","class":"dropdown_content"},
 					[
-						m("a", {"style":"color: lime"}, 
-							playername
+						m("a", {"id":"username"}, 
+							user
 						),
-						m("a", {
+						
+                        m("a", {
                                 onclick: function(e) {
                                     ficswrap.emit('command', 'getgame');
                                 }
                             }, 
 							"get game"
 						),
+                        
                         m("a", {"onclick": () => ficswrap.emit('command','seek')}, 
 							"seek"
 						),
+                        
                         m("a", {"onclick": () => ficswrap.emit('command','sought all')}, 
 							"sought"
 						),
-						m("a", {
-                                onclick: function(e) {
-                                    ficswrap.emit('command', 'follow /b');
-                                }
-                            }, 
-							"watch"
-						),
-						m("a", {
+                        
+                        m("a", {
                                 onclick: function(e) {
                                     ficswrap.emit('command', 'who');
                                     m.route.set('/playerlist');
@@ -283,7 +236,8 @@ var MainMenu = {
                             }, 
 							"players"
 						),
-						m("a", {
+						
+                        m("a", {
                                 onclick: function(e) {
                                     ficswrap.emit('command', 'games');
                                     m.route.set('/gamelist');
@@ -291,6 +245,19 @@ var MainMenu = {
                             }, 
 							"games"
 						),
+                        
+                        BoardController.cur_game_num && gamemap.get(BoardController.cur_game_num)
+                        ?
+						m("a", {
+                                onclick: function(e) {
+                                    m.route.set('/board_controller?cur_game_num='+BoardController.cur_game_num);
+                                }
+                            }, 
+							"board"
+						)
+                        :
+                        null,
+						
                         /*
 						m("a", {}, 
 							"puzzles"
@@ -308,10 +275,12 @@ var MainMenu = {
 							"shouts/tells/channels"
 						),
                         */
-						m("a", {}, 
+						
+                        m("a", {}, 
 							"preferences"
 						),
-						m("a", {
+						
+                        m("a", {
                                 onclick: function(e) {
                                     Cookies.remove('auto_login');
                                     Cookies.remove('username');
@@ -671,8 +640,9 @@ function toMinutes(seconds) {
 
 function runClock(game_num) {
     var game = gamemap.get(game_num);
-    if (!game) {
-        console.log('in runClock and game not found for game_num ' + game_num);
+    if (!game || game.result) {
+        console.log('in runClock and game not found for game_num ' + game_num + ' or game ended');
+        return;
     }
     stopClocks(game_num);
 
@@ -845,7 +815,7 @@ var Board = {
         }
 
         var game = gamemap.get(Board.game_num);
-        game.current_move_index = i;
+        //game.current_move_index = i;
         if (i == -1) {
             Board.board.position(game.startfen, animate);
         } else {
@@ -865,6 +835,8 @@ var Board = {
             }
 
             var mv = game.chess.history({verbose: true})[i];
+            console.log('mv is ' + mv);
+            console.log('gihlight squares is next');
 
             highlightSquares($('#board'), 'yellow', move=mv);
 
@@ -875,7 +847,6 @@ var Board = {
         var game = gamemap.get(Board.game_num);
         if ( game.human_color === 'b' ) {
             Board.board.flip();
-            game.top_is_black = false;
         }
 
         $('#board').find('.white-1e1d7').css('background-color', tinycolor(game.theme.light_rgba));
@@ -896,95 +867,120 @@ var Board = {
 
 
     oncreate: function(vnode) {
+        console.log('IN B ONCREATE');
         Board.createChessboard();
         Board.applyTheme();
+        var game = gamemap.get(BoardController.cur_game_num);
+        Board.goToMove(Board.game_num, game.current_move_index, animate=false) ;
+        //var mv = game.chess.history({verbose: true})[i];
+        //highlightSquares($('#board'), 'yellow', move=mv);
         runClock(Board.game_num);
     },
     oninit: function(vnode) {
+        console.log('IN B ONINIT');
         Board.game_num = vnode.attrs.game_num;
+        var game = gamemap.get(Board.game_num);
+        if ( game.human_color === 'b' ) {
+            game.top_is_black = false;
+        }
+
     },
     onupdate: function(vnode) {
+        console.log('IN B ONUPDATE');
         if ( Board.game_num != vnode.attrs.game_num ) {
             Board.game_num = vnode.attrs.game_num;
+            /*
             Board.createChessboard();
             Board.applyTheme();
+            var game = gamemap.get(BoardController.cur_game_num);
+            Board.goToMove(Board.game_num, game.current_move_index + 1, animate=false) ;
+            var mv = game.chess.history({verbose: true})[i];
+            highlightSquares($('#board'), 'yellow', move=mv);
             runClock(Board.game_num);
+            */
         }
     },
+
+
+
+
+
+
+
+
+
     view: function(vnode) {
         var game = gamemap.get(Board.game_num);
-        return [gamemap.get(Board.game_num)].map( game => {
 
-		    return [
-                    m("div", {"id":"top_info_"+Board.game_num,"class":"info_container top_info"}, 
-                            m('div', {'class':'centerbold'},
-						        game.chess.header().Event)
-					),
-
-
-
-					m("div", {"id":"top_player_"+Board.game_num,"class":"player_container top_player"}, 
-                            game.top_is_black
-                            ?
-                            m('div', {"class":"player_name"},
-						        game.chess.header().Black + ' (' + game.chess.header().BlackElo + ')',
-                                m('div', {'id':'top_time_'+Board.game_num,'class':'player_time'},
-                                    toMinutes(game.s12.b_clock))
-                            )
-                            :
-                            m('div', {"class":"player_name"},
-						        game.chess.header().White + ' (' + game.chess.header().WhiteElo + ')',
-                                m('div', {'id':'top_time_'+Board.game_num,'class':'player_time'},
-                                    toMinutes(game.s12.w_clock))
-                            )
-					),
+		return [
+                m("div", {"id":"top_info_"+Board.game_num,"class":"info_container top_info"}, 
+                        m('div', {'class':'centerbold'},
+						    game.chess.header().Event)
+				),
 
 
 
-
-					m("div", {"id":"top_space_"+Board.game_num,"class":"player_space top_space"}),
-
-					m("div", {"id":"board","class":"board"}),
-
-                    m("div", {"id":"bottom_space_"+Board.game_num,"class":"player_space bottom_space"}),
+				m("div", {"id":"top_player_"+Board.game_num,"class":"player_container top_player"}, 
+                        game.top_is_black
+                        ?
+                        m('div', {"class":"player_name"},
+						    game.chess.header().Black + ' (' + game.chess.header().BlackElo + ')',
+                            m('div', {'id':'top_time_'+Board.game_num,'class':'player_time'},
+                                toMinutes(game.s12.b_clock))
+                        )
+                        :
+                        m('div', {"class":"player_name"},
+						    game.chess.header().White + ' (' + game.chess.header().WhiteElo + ')',
+                            m('div', {'id':'top_time_'+Board.game_num,'class':'player_time'},
+                                toMinutes(game.s12.w_clock))
+                        )
+				),
 
 
 
 
-					m("div", {"id":"bottom_player_"+Board.game_num,"class":"player_container bottom_player"}, 
-                            game.top_is_black
-                            ?
-                            m('div', {"class":"player_name"},
-						        game.chess.header().White + ' (' + game.chess.header().WhiteElo + ')',
-                                m('div', {'id':'bottom_time_'+Board.game_num,'class':'player_time'},
-                                    toMinutes(game.s12.w_clock))
-                            )
-                            :
-                            m('div', {"class":"player_name"},
-						        game.chess.header().Black + ' (' + game.chess.header().BlackElo + ')',
-                                m('div', {'id':'bottom_time_'+Board.game_num,'class':'player_time'},
-                                    toMinutes(game.s12.b_clock))
-                            )
-					),
+				m("div", {"id":"top_space_"+Board.game_num,"class":"player_space top_space"}),
+
+				m("div", {"id":"board","class":"board"}),
+
+                m("div", {"id":"bottom_space_"+Board.game_num,"class":"player_space bottom_space"}),
 
 
-					m("div", {"id":"bottom_info_"+Board.game_num,"class":"info_container bottom_info"}, 
-                        [
-                            m('div', {'id':'result_'+Board.game_num,'class':'centerbold'},
-                                game.situ + ' ' + game.result
-                            ),
+
+
+				m("div", {"id":"bottom_player_"+Board.game_num,"class":"player_container bottom_player"}, 
+                        game.top_is_black
+                        ?
+                        m('div', {"class":"player_name"},
+						    game.chess.header().White + ' (' + game.chess.header().WhiteElo + ')',
+                            m('div', {'id':'bottom_time_'+Board.game_num,'class':'player_time'},
+                                toMinutes(game.s12.w_clock))
+                        )
+                        :
+                        m('div', {"class":"player_name"},
+						    game.chess.header().Black + ' (' + game.chess.header().BlackElo + ')',
+                            m('div', {'id':'bottom_time_'+Board.game_num,'class':'player_time'},
+                                toMinutes(game.s12.b_clock))
+                        )
+				),
+
+
+				m("div", {"id":"bottom_info_"+Board.game_num,"class":"info_container bottom_info"}, 
+                    [
+                        m('div', {'id':'result_'+Board.game_num,'class':'centerbold'},
+                            game.situ + ' ' + game.result
+                        ),
+                        game.blurb
+                        ?
+                        m('div', {'class':'centerbold', 'style':'color:red'},
                             game.blurb
-                            ?
-                            m('div', {'class':'centerbold', 'style':'color:red'},
-                                game.blurb
-                            )
-                            :
-                            null
-                        ]
+                        )
+                        :
+                        null
+                    ]
 
-					),
-				]
-        });
+				),
+        ]
     }
 }
     
@@ -992,14 +988,17 @@ var BoardController = {
     cur_game_num: '',
 
     oncreate: function(vnode) {
+        console.log('IN BC ONCREATE');
         calcDims();
     },
     oninit: function(vnode) {
+        console.log('IN BC ONINIT');
         if ( vnode.attrs.cur_game_num ) {
             BoardController.cur_game_num = vnode.attrs.cur_game_num;
         }
     },
     onupdate: function(vnode) {
+        console.log('IN BC ONUPDATE');
         if ( BoardController.cur_game_num != vnode.attrs.cur_game_num ) {
             BoardController.cur_game_num = vnode.attrs.cur_game_num;
         }
@@ -1135,6 +1134,9 @@ var BoardController = {
 									)
 								),
 
+                            m('a', {onmousedown: BoardController.rewind}, //, onclick: BoardController.moveBack},
+                                '<<'),
+
                             m('a', {onclick: function() {
                                 game.top_is_black = game.top_is_black ? false : true;
                                 Board.board.flip();
@@ -1153,13 +1155,11 @@ var BoardController = {
                             }}, 
                                 'F'),
 
-                            //m('a', {onmousedown: BoardController.rewind, onmouseup: () => clearInterval(BoardController.rwtimer)},
-                            m('a', {onmousedown: BoardController.rewind, onclick: BoardController.moveBack},
-                                '<<'),
-
-                            //m('a', {onmousedown: BoardController.fastforward, onmouseup: () => clearInterval(BoardController.fftimer)},
-                            m('a', {onmousedown: BoardController.fastforward, onclick: BoardController.moveForward},
+                            m('a', {onmousedown: BoardController.fastforward}, //, onclick: BoardController.moveForward},
                                 '>>'),
+
+                            m('a', {},
+                                'XX'),
 
                         ]
                      ),
@@ -1190,7 +1190,7 @@ var BoardController = {
                                         Board.goToMove(game.game_num, game.current_move_index - 1);
                                     }
                                     m.redraw();
-            }, 75);
+            }, 80);
         }
         return false;
 
@@ -1206,7 +1206,7 @@ var BoardController = {
                                         Board.goToMove(game.game_num, game.current_move_index + 1);
                                     }
                                     m.redraw();
-            }, 75);
+            }, 80);
         }
         return false;
     },
@@ -1250,9 +1250,9 @@ var soundmap = {
 };
 
 var themes;
-var playername = '';
+var user = '';
 var players = [];
-
+var theme_num = 0;
 function loadThemes() {
     themes = Cookies.get('themes');
     if (!themes) {
@@ -1261,6 +1261,7 @@ function loadThemes() {
     } else {
         themes = JSON.parse(themes);
     }
+    theme_num = Math.floor(Math.random() * themes.length);
 }
 
 
@@ -1327,6 +1328,10 @@ ficswrap.on("result", function(msg) {
         showout = true;
     }
 
+    if ( ficsobj.body.match(/You accept the match offer|^Challenge: |withdraws the match offer|updates the match request|declines the match|declines your match|accepts the match offer|You withdraw the match offer|^Issuing:|You decline the match offer/) ) {
+        ficswrap.emit('command', 'pending');
+    }
+
     if ( !ficsobj.cmd_code ) {
         if ( ficsobj.body.match(/offers you a draw./) ) {
             var g = gamemap.get(getActiveHumanGameNum())
@@ -1355,9 +1360,6 @@ ficswrap.on("result", function(msg) {
 
 
 
-        if ( ficsobj.body.match(/^Challenge: |withdraws the match offer|updates the match request|declines the match|declines your match|accepts the match offer/) ) {
-            ficswrap.emit('command', 'pending');
-        }
     }
     if ( ficsobj.cmd_code ) {
         cmd_code = ficsobj.cmd_code;
@@ -1372,13 +1374,8 @@ ficswrap.on("result", function(msg) {
         // variables command result
         } else if (ficsobj.cmd_code === 143) {
             var info = ficsobj.body.split(':')[0].split(/\s+/);
-            playername = info[info.length-1];
+            user = info[info.length-1];
             m.redraw();
-        // decline command result
-        } else if (ficsobj.cmd_code === 33) {
-            if ( ficsobj.body.match(/You decline the match offer/) ) {
-                ficswrap.emit('command', 'pending');
-            }
         // draw command result
         } else if (ficsobj.cmd_code === 34) {
             var g = gamemap.get(getActiveHumanGameNum());
@@ -1405,16 +1402,6 @@ ficswrap.on("result", function(msg) {
                     m.redraw();
                 }
             }
-        // withdraw command result
-        } else if (ficsobj.cmd_code === 147) {
-            if ( ficsobj.body.match(/You withdraw the match offer/) ) {
-                ficswrap.emit('command', 'pending');
-            }
-        // match command result
-        } else if (ficsobj.cmd_code === 73) {
-            if ( ficsobj.body.match(/^Issuing:/) ) {
-                ficswrap.emit('command', 'pending');
-            }
         // moves command result
         } else if (ficsobj.cmd_code === 77) {
             var movesobj = window.MOVESPARSER.parse(ficsobj.body);
@@ -1423,7 +1410,6 @@ ficswrap.on("result", function(msg) {
 
             if (game) { 
                 game.initMoves(movesobj); 
-                //BoardController.cur_game_num = game_num;
                 m.route.set('/board_controller?cur_game_num='+game_num);
             }
         // pending command result
@@ -1449,6 +1435,7 @@ ficswrap.on("result", function(msg) {
                     }
                 }
 			})
+            console.log('are we about to redraw?');
 			m.redraw();
         // finger command result
         } else if (ficsobj.cmd_code === 37) {
@@ -1515,36 +1502,13 @@ ficswrap.on("result", function(msg) {
         game.blurb = ''; //kind of a hacky place to put this
 
 
-/*
-Right after a follow high rated ended: (1233 is line above)
-
-client.js:1233 Uncaught TypeError: Cannot set property 'result' of undefined
-    at Socket.eval (client.js:1233)
-    at Socket../node_modules/component-emitter/index.js.Emitter.emit (index.js:145)
-    at Socket.emitEvent (socket.js:242)
-    at Socket.onevent (socket.js:229)
-    at Socket.onpacket (socket.js:193)
-    at Manager.<anonymous> (index.js:21)
-    at Manager../node_modules/component-emitter/index.js.Emitter.emit (index.js:145)
-    at Manager.ondecoded (manager.js:209)
-    at Decoder.<anonymous> (index.js:21)
-    at Decoder../node_modules/component-emitter/index.js.Emitter.emit (index.js:145)
-
-
-
- */
-
-
-
-
-
-
-
         game.situ = ficsobj.game_info.situ;
         //if ( !game.situ ) { game.situ = 'IN PROGRESS'; }
 
         if (['1-0','0-1','1/2-1/2'].indexOf(game.result) != -1) {
-            soundmap.gong[Math.floor(Math.random() * soundmap.gong.length)].play();
+            if ( BoardController.cur_game_num && BoardController.cur_game_num === game_num ) {
+                soundmap.gong[Math.floor(Math.random() * soundmap.gong.length)].play();
+            }
             stopClocks(game_num);
         }
         m.redraw();
@@ -1556,7 +1520,9 @@ client.js:1233 Uncaught TypeError: Cannot set property 'result' of undefined
         //    removeGame(game_num);
         //}
         gamemap.set(game_num, new Game(ficsobj.s12, ficsobj.game_info));
-        gamemap.get(game_num).theme = themes[Math.floor(Math.random() * themes.length)];
+        theme_num = theme_num + 1;
+        if (theme_num >= themes.length) theme_num = 0;
+        gamemap.get(game_num).theme = themes[theme_num];
         if (ficsobj.s12.my_rel === '1' || ficsobj.s12.my_rel === '-1') { 
             gamemap.get(game_num).human_color =  (ficsobj.s12.whose_move === 'B' && ficsobj.s12.my_rel === '1') || (ficsobj.s12.whose_move === 'W' && ficsobj.s12.my_rel === '-1') ? 'b' : 'w';
         }
@@ -1572,16 +1538,18 @@ client.js:1233 Uncaught TypeError: Cannot set property 'result' of undefined
             } else {
                 var move_info = game.chess.move(ficsobj.s12.move_note_short, {sloppy:true});
                 if (move_info) {
-                    if (game.chess.in_check()) {
-                        soundmap.checks[Math.floor(Math.random() * soundmap.checks.length)].play();
-                    } else if (['n','b','k','q','p'].includes(move_info.flags)) {
-                        soundmap.moves[Math.floor(Math.random() * soundmap.moves.length)].play();
-                    } else {
-                        soundmap.captures[Math.floor(Math.random() * soundmap.captures.length)].play();
+                    if ( BoardController.cur_game_num && BoardController.cur_game_num === game.game_num ) {
+                        if (game.chess.in_check()) {
+                            soundmap.checks[Math.floor(Math.random() * soundmap.checks.length)].play();
+                        } else if (['n','b','k','q','p'].includes(move_info.flags)) {
+                            soundmap.moves[Math.floor(Math.random() * soundmap.moves.length)].play();
+                        } else {
+                            soundmap.captures[Math.floor(Math.random() * soundmap.captures.length)].play();
+                        }
                     }
 
                     game.s12 = ficsobj.s12;
-                    if (['1-0','0-1','1/2-1/2'].indexOf(game.result) === -1) {
+                    if (['1-0','0-1','1/2-1/2'].indexOf(game.result) === -1) {  // maybe '*' also?
                         runClock(game_num);
                     }
 
@@ -1600,7 +1568,9 @@ client.js:1233 Uncaught TypeError: Cannot set property 'result' of undefined
                     console.log(new_move_index);
                     console.log('game.current_move_index:');
                     console.log(game.current_move_index);
-                    if ( Board.game_num === game.game_num && new_move_index == game.current_move_index + 1) {
+                    //if ( Board.game_num === game.game_num && new_move_index == game.current_move_index + 1) {
+                    game.current_move_index = new_move_index;
+                    if ( Board.game_num === game.game_num ) {
                         if (whose_move === game.human_color && !game.premove) { Board.goToMove(game_num, new_move_index, animate=false) }
                         else { Board.goToMove(game_num, new_move_index, animate=true); }
                     }
