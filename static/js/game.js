@@ -1,5 +1,5 @@
 
-var gamemap = new Map();
+var g_gamemap = new Map();
 
 class Game {
     constructor(s12, game_info) {
