@@ -129,9 +129,26 @@ function calcDims() {
 
     if (Board.board) {
         Board.board.resize();
-        Board.applyTheme();
+        applyTheme();
     }
 }
+
+
+function applyTheme() {
+    var game = g_gamemap.get(Board.game_num);
+
+    $('#board').find('.white-1e1d7').css('background-color', tinycolor(game.theme.light_rgba));
+    $('#board').find('.white-1e1d7').css('color', tinycolor(game.theme.dark_rgba));
+    $('#board').find('.black-3c85d').css('background-color', tinycolor(game.theme.dark_rgba));
+    $('#board').find('.black-3c85d').css('color', tinycolor(game.theme.light_rgba));
+
+    $('#board').find('.board-b72b1').css('background-image', game.theme.texture ? 'url(/textures/' + game.theme.texture + ')' : 'none');
+    $('#board').find('.board-b72b1').css('background-repeat', 'no-repeat');
+    $('#board').find('.board-b72b1').css('background-position', 'center');
+    $('#board').find('.board-b72b1').css('background-size', 'cover');
+
+};
+
 
 
 function closeAllMenus() {
@@ -346,7 +363,7 @@ SOCK.on("logged_in", function(msg) {
 
     SOCK.emit('command', 'variables');
 
-    m.route.set('/lobby');
+    m.route.set('/lobby', null, {state: {key: Date.now()}});
 });
 
 SOCK.on("result", function(msg) {
@@ -359,7 +376,7 @@ SOCK.on("result", function(msg) {
         showout = true;
     }
 
-    if ( ficsobj.body.match(/You accept the match offer|^Challenge: |withdraws the match offer|updates the match request|declines the match|declines your match|accepts the match offer|You withdraw the match offer|^Issuing:|You decline the match offer/) ) {
+    if ( ficsobj.body.match(/challenge intercepts your challenge|Your challenge intercepts|You accept the match offer|^Challenge: |withdraws the match offer|updates the match request|declines the match|declines your match|accepts the match offer|You withdraw the match offer|^Issuing:|You decline the match offer/) ) {
         SOCK.emit('command', 'pending');
     }
 
@@ -441,7 +458,8 @@ SOCK.on("result", function(msg) {
 
             if (game) { 
                 game.initMoves(movesobj); 
-                m.route.set('/board_controller?cur_game_num='+game_num);
+                m.route.set('/board_controller?cur_game_num='+game_num, null, {state: {key: Date.now()}});
+                m.redraw();
             }
         // pending command result
         } else if (ficsobj.cmd_code === 87) {
@@ -498,7 +516,7 @@ SOCK.on("result", function(msg) {
 				})
 			})
 
-            m.route.set('/playerlist');
+            m.route.set('/playerlist', null, {state: {key: Date.now()}});
         }
     }
     
@@ -747,7 +765,7 @@ var MainMenu = {
                         m("a", {
                                 onclick: function(e) {
                                     SOCK.emit('command', 'who');
-                                    m.route.set('/playerlist');
+                                    m.route.set('/playerlist', null, {state: {key: Date.now()}});
                                 }
                             }, 
 							"players"
@@ -756,7 +774,7 @@ var MainMenu = {
                         m("a", {
                                 onclick: function(e) {
                                     SOCK.emit('command', 'games');
-                                    m.route.set('/gamelist');
+                                    m.route.set('/gamelist', null, {state: {key: Date.now()}});
                                 }
                             }, 
 							"games"
@@ -766,7 +784,7 @@ var MainMenu = {
                         ?
 						m("a", {
                                 onclick: function(e) {
-                                    m.route.set('/board_controller?cur_game_num='+BoardController.cur_game_num);
+                                    m.route.set('/board_controller?cur_game_num='+BoardController.cur_game_num, null, {state: {key: Date.now()}});
                                 }
                             }, 
 							"board"
@@ -802,7 +820,7 @@ var MainMenu = {
                                     Cookies.remove('username');
                                     Cookies.remove('password');
                                     SOCK.emit('command', 'exit');
-                                    m.route.set('/login');
+                                    m.route.set('/login', null, {state: {key: Date.now()}});
                                 }
                             },
 							"logout"
@@ -837,7 +855,7 @@ var Alerter = {
     view: function(vnode) {
         var alerts = Alerts.offers_to.length || Alerts.offers_from.length ? true : false;
         return m('a', {'style': alerts ? 'color:lime' : '','onclick':function(e) {
-                                            m.route.set('/alerts');
+                                            m.route.set('/alerts', null, {state: {key: Date.now()}});
                                             SOCK.emit('command', 'pending');
                                             return false;
                                         }
@@ -986,7 +1004,7 @@ var PlayerList = {
                                 return [m('a', {'href':'#', 'class':'list-item', 'style':'color:orange',
                                         'onclick':function(e) {
                                             $(this).css('color', 'red');
-                                            m.route.set('/finger');
+                                            m.route.set('/finger', null, {state: {key: Date.now()}});
                                             SOCK.emit('command', 'finger ' + x[2]);
                                             return false;
                                         }},
@@ -1219,7 +1237,7 @@ var Board = {
         }
 
         var game = g_gamemap.get(Board.game_num);
-        //game.current_move_index = i;
+        game.current_move_index = i;
         if (i == -1) {
             Board.board.position(game.startfen, animate);
         } else {
@@ -1247,29 +1265,14 @@ var Board = {
         }
     },
 
-    applyTheme: function() {
-        var game = g_gamemap.get(Board.game_num);
-        if ( game.human_color === 'b' ) {
-            Board.board.flip();
-        }
-
-        $('#board').find('.white-1e1d7').css('background-color', tinycolor(game.theme.light_rgba));
-        $('#board').find('.white-1e1d7').css('color', tinycolor(game.theme.dark_rgba));
-        $('#board').find('.black-3c85d').css('background-color', tinycolor(game.theme.dark_rgba));
-        $('#board').find('.black-3c85d').css('color', tinycolor(game.theme.light_rgba));
-
-        $('#board').find('.board-b72b1').css('background-image', game.theme.texture ? 'url(/textures/' + game.theme.texture + ')' : 'none');
-        $('#board').find('.board-b72b1').css('background-repeat', 'no-repeat');
-        $('#board').find('.board-b72b1').css('background-position', 'center');
-        $('#board').find('.board-b72b1').css('background-size', 'cover');
-
-    },
-
     oncreate: function(vnode) {
         console.log('IN B ONCREATE');
         Board.createChessboard();
-        Board.applyTheme();
         var game = g_gamemap.get(BoardController.cur_game_num);
+        if ( game.human_color === 'b' ) {
+            Board.board.flip();
+        }
+        applyTheme();
         Board.goToMove(Board.game_num, game.current_move_index, animate=false) ;
         runClock(Board.game_num);
     },
@@ -1295,20 +1298,20 @@ var Board = {
 		return [
                 m("div", {"id":"top_info_"+Board.game_num,"class":"info_container top_info"}, 
                         m('div', {'class':'centerbold'},
-						    game.chess.header().Event)
+						    game.game_num + ': ' + game.chess.header().Event)
 				),
 
 				m("div", {"id":"top_player_"+Board.game_num,"class":"player_container top_player"}, 
                         game.top_is_black
                         ?
                         m('div', {"class":"player_name"},
-						    game.chess.header().Black + ' (' + game.chess.header().BlackElo + ')',
+						    'BLACK: ' + game.chess.header().Black + ' (' + game.chess.header().BlackElo + ')',
                             m('div', {'id':'top_time_'+Board.game_num,'class':'player_time'},
                                 toMinutes(game.s12.b_clock))
                         )
                         :
                         m('div', {"class":"player_name"},
-						    game.chess.header().White + ' (' + game.chess.header().WhiteElo + ')',
+						    'WHITE: ' + game.chess.header().White + ' (' + game.chess.header().WhiteElo + ')',
                             m('div', {'id':'top_time_'+Board.game_num,'class':'player_time'},
                                 toMinutes(game.s12.w_clock))
                         )
@@ -1374,6 +1377,9 @@ var BoardController = {
         console.log('IN BC ONUPDATE');
         if ( BoardController.cur_game_num != vnode.attrs.cur_game_num ) {
             BoardController.cur_game_num = vnode.attrs.cur_game_num;
+        }
+        if ( Board.game_num != vnode.attrs.cur_game_num ) {
+            Board.game_num = vnode.attrs.cur_game_num;
         }
     },
     view: function(vnode) {
@@ -1470,16 +1476,7 @@ var BoardController = {
                             m('a', {onclick: function() {
                                 game.top_is_black = game.top_is_black ? false : true;
                                 Board.board.flip();
-
-                                $('#board').find('.white-1e1d7').css('background-color', tinycolor(game.theme.light_rgba));
-                                $('#board').find('.white-1e1d7').css('color', tinycolor(game.theme.dark_rgba));
-                                $('#board').find('.black-3c85d').css('background-color', tinycolor(game.theme.dark_rgba));
-                                $('#board').find('.black-3c85d').css('color', tinycolor(game.theme.light_rgba));
-
-                                $('#board').find('.board-b72b1').css('background-image', game.theme.texture ? 'url(/textures/' + game.theme.texture + ')' : 'none');
-                                $('#board').find('.board-b72b1').css('background-repeat', 'no-repeat');
-                                $('#board').find('.board-b72b1').css('background-position', 'center');
-                                $('#board').find('.board-b72b1').css('background-size', 'cover');
+                                applyTheme();
                                 runClock(BoardController.cur_game_num);
                                 return false;
                             }}, 
@@ -1537,7 +1534,7 @@ var BoardController = {
 }
 
 
-m.route.set('/login');
+m.route.set('/login', null, {state: {key: Date.now()}});
 
 m.route(ROOT, "/login", {
     "/lobby": Lobby,
