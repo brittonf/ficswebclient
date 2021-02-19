@@ -427,11 +427,6 @@ SOCK.on("result", function(msg) {
         // draw command result
         } else if (ficsobj.cmd_code === 34) {
             var g = g_gamemap.get(getActiveHumanGameNum());
-            console.log('draw returned');
-            console.log('g_gamemap is');
-            console.log(g_gamemap);
-            console.log('human_game is');
-            console.log(g);
             if ( g ) {
                 if ( ficsobj.body.match(/Draw request sent|You are already offering a draw/) ) {
                     g.blurb = 'Draw offer sent...';
@@ -484,7 +479,6 @@ SOCK.on("result", function(msg) {
                     }
                 }
 			})
-            console.log('are we about to redraw?');
 			m.redraw();
         // finger command result
         } else if (ficsobj.cmd_code === 37) {
@@ -603,13 +597,9 @@ SOCK.on("result", function(msg) {
                     var whose_move = ['w','b'][new_move_index % 2];
 
 
-                    console.log('move_indexes');
-                    console.log('new_move_index:');
-                    console.log(new_move_index);
-                    console.log('game.current_move_index:');
-                    console.log(game.current_move_index);
-                    //if ( Board.game_num === game.game_num && new_move_index == game.current_move_index + 1) {
                     game.current_move_index = new_move_index;
+
+                    //if ( Board.game_num === game.game_num && new_move_index == game.current_move_index + 1) { //might actually work now
                     if ( Board.game_num === game.game_num ) {
                         if (whose_move === game.human_color && !game.premove) { Board.goToMove(game_num, new_move_index, animate=false) }
                         else { Board.goToMove(game_num, new_move_index, animate=true); }
@@ -1257,8 +1247,6 @@ var Board = {
             }
 
             var mv = game.chess.history({verbose: true})[i];
-            console.log('mv is ' + mv);
-            console.log('gihlight squares is next');
 
             highlightSquares($('#board'), 'yellow', move=mv);
 
@@ -1266,7 +1254,6 @@ var Board = {
     },
 
     oncreate: function(vnode) {
-        console.log('IN B ONCREATE');
         Board.createChessboard();
         var game = g_gamemap.get(BoardController.cur_game_num);
         if ( game.human_color === 'b' ) {
@@ -1277,7 +1264,6 @@ var Board = {
         runClock(Board.game_num);
     },
     oninit: function(vnode) {
-        console.log('IN B ONINIT');
         Board.game_num = vnode.attrs.game_num;
         var game = g_gamemap.get(Board.game_num);
         if ( game.human_color === 'b' ) {
@@ -1286,7 +1272,6 @@ var Board = {
 
     },
     onupdate: function(vnode) {
-        console.log('IN B ONUPDATE');
         if ( Board.game_num != vnode.attrs.game_num ) {
             Board.game_num = vnode.attrs.game_num;
         }
@@ -1298,20 +1283,20 @@ var Board = {
 		return [
                 m("div", {"id":"top_info_"+Board.game_num,"class":"info_container top_info"}, 
                         m('div', {'class':'centerbold'},
-						    game.game_num + ': ' + game.chess.header().Event)
+						    game.chess.header().Event)
 				),
 
 				m("div", {"id":"top_player_"+Board.game_num,"class":"player_container top_player"}, 
                         game.top_is_black
                         ?
                         m('div', {"class":"player_name"},
-						    'BLACK: ' + game.chess.header().Black + ' (' + game.chess.header().BlackElo + ')',
+						    game.chess.header().Black + ' (' + game.chess.header().BlackElo + ')',
                             m('div', {'id':'top_time_'+Board.game_num,'class':'player_time'},
                                 toMinutes(game.s12.b_clock))
                         )
                         :
                         m('div', {"class":"player_name"},
-						    'WHITE: ' + game.chess.header().White + ' (' + game.chess.header().WhiteElo + ')',
+						    game.chess.header().White + ' (' + game.chess.header().WhiteElo + ')',
                             m('div', {'id':'top_time_'+Board.game_num,'class':'player_time'},
                                 toMinutes(game.s12.w_clock))
                         )
@@ -1364,17 +1349,14 @@ var BoardController = {
     cur_game_num: '',
 
     oncreate: function(vnode) {
-        console.log('IN BC ONCREATE');
         calcDims();
     },
     oninit: function(vnode) {
-        console.log('IN BC ONINIT');
         if ( vnode.attrs.cur_game_num ) {
             BoardController.cur_game_num = vnode.attrs.cur_game_num;
         }
     },
     onupdate: function(vnode) {
-        console.log('IN BC ONUPDATE');
         if ( BoardController.cur_game_num != vnode.attrs.cur_game_num ) {
             BoardController.cur_game_num = vnode.attrs.cur_game_num;
         }
