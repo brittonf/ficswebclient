@@ -73,6 +73,15 @@ http.listen(port, function() {
     console.log('listening on port ' + port);
 });
 
+sockmap = new Map();
+logger = {
+    setSockIdUser : function(sockid, user, ip) {
+        sockmap.set(sockid,user);
+    },
+    log : function(sockid, cmd) {
+        console.log( `${Date()} - ${sockmap.get(sockid)}: ${cmd}`);
+    }
+}
 
 // telnet
 var telnet = require('telnet-client');
@@ -100,6 +109,7 @@ io.on('connection', function(socket) {
         fics_telnet_params.password = msg[1];
 
         fics_telnet.connect(fics_telnet_params).then(function(prompt) { 
+            logger.setSockIdUser(socket.id, fics_telnet_params.username);
             fics_telnet.send('set seek 0',{maxBufferLength:10000});
             fics_telnet.send('style 12',{maxBufferLength:10000});
             fics_telnet.send('iset block 1',{maxBufferLength:10000})
@@ -133,13 +143,14 @@ io.on('connection', function(socket) {
                             if (!cmd_num) {
                                 actual_data = actual_data.replace(/fics%/g, '').replace(/^[\s\n\r]+|[\s\n\r]+$/g,'');
                                 if (actual_data.length) {
-                                    console.log(actual_data);
                                     socket.emit('result', actual_data);
                                 }
                             } else {
                                 bufparts.push(actual_data);
                                 if (last_part) {
-                                    if (bufparts.join('').length) socket.emit('result', bufparts.join(''));
+                                    if (bufparts.join('').length) {
+                                        socket.emit('result', bufparts.join(''));
+                                    }
                                     while (bufparts.length) { bufparts.pop(); }
                                     cmd_num = 0;
                                     cmd_code = 0;
@@ -148,10 +159,12 @@ io.on('connection', function(socket) {
                         });
 
                         socket.on('command', function(cmd) {
+                            logger.log(socket.id, cmd);
                             stream.write('123987001 ' + cmd + '\n');
                         });
 
                         socket.on('command_shell', function(cmd) {
+                            logger.log(socket.id, cmd);
                             stream.write('773450001 ' + cmd + '\n');
                         });
 
