@@ -26,6 +26,7 @@ class Game {
 
         this.clocks = {w:null, b:null};
 
+        /*
         this.pieceTheme = (piece) => {
             if (this.theme) {
                 if (piece.search(/w/) !== -1) {
@@ -34,6 +35,7 @@ class Game {
                 return 'img/chesspieces/' + this.theme.black_pieces + '/' + piece + '.png';
             }
         };
+        */
     }
 
     initMoves(movesobj) {

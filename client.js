@@ -7,7 +7,9 @@
 
 const m = require('mithril');
 
-const SOCK = io();
+//const SOCK = io();
+const DOMAIN = 'https://p4004.insteadofwork.com';
+const SOCK = io.connect(DOMAIN);
 
 const ROOT = document.body;
 
@@ -144,7 +146,7 @@ function applyTheme() {
     $('#board').find('.black-3c85d').css('background-color', tinycolor(game.theme.dark_rgba));
     $('#board').find('.black-3c85d').css('color', tinycolor(game.theme.light_rgba));
 
-    $('#board').find('.board-b72b1').css('background-image', game.theme.texture ? 'url(/textures/' + game.theme.texture + ')' : 'none');
+    $('#board').find('.board-b72b1').css('background-image', game.theme.texture ? 'url(' + DOMAIN + '/textures/' + game.theme.texture + ')' : 'none');
     $('#board').find('.board-b72b1').css('background-repeat', 'no-repeat');
     $('#board').find('.board-b72b1').css('background-position', 'center');
     $('#board').find('.board-b72b1').css('background-size', 'cover');
@@ -278,6 +280,98 @@ function getActiveHumanGameNum() {
 }
 
 
+function attemptMove(source, target, piece) {
+    if ( !Board.hasOwnProperty('game_num') ) {
+        return;
+    }
+    var game = g_gamemap.get(Board.game_num);
+    if ( !game ) {
+        return;
+    }
+
+    if (target === game.empty_square) {
+        var pos = Board.board.position();
+
+        if (!pos[game.empty_square]) {
+            pos[game.empty_square] = game.empty_piece;
+            Board.board.position(pos);
+        }
+
+        game.empty_square = null;
+        game.empty_piece = null;
+
+
+    } else {
+        var mv = { from: source, to: target };
+        if (/[18]$/.test(target) && /[pP]/.test(piece)) {
+            var choices = game.chess.moves({verbose:true});
+            for (var i=0; i<choices.length; i++) {
+                var ch = choices[i];
+                if (ch.from === source && ch.to === target) {
+                    mv.promotion = 'q';
+                    break;
+                }
+            }
+        }
+        var valid_move = game.chess.move(mv);
+        if (valid_move) {
+            game.chess.undo();
+        }
+        if (game.s12.my_rel === '1') {
+            if (!valid_move) {
+                if (game.empty_square) {
+                    var pos = Board.board.position();
+
+                    if (!pos[game.empty_square]) {
+                        pos[game.empty_square] = game.empty_piece;
+                        Board.board.position(pos, false);
+                    }
+
+                    game.empty_square = null;
+                    game.empty_piece = null;
+                }
+                return 'snapback';
+            } else {
+                SOCK.emit('command', valid_move.from + '-' + valid_move.to);
+            }
+        } else if (game.s12.my_rel === '-1') {
+            var mv = {}
+            if (source != target) {
+                if (target === 'offboard') {
+                    if (game.premove) {
+                        if (game.premove.from === source) {
+                            game.premove = null;
+                            highlightSquares($('#board'), 'red', clear=true);
+                        }
+                    } else { 
+                        //do nothing
+                    }
+                } else {
+                    mv.from = source;
+                    mv.to = target;
+                    mv.piece = piece;
+                    game.premove = mv;
+                    highlightSquares($('#board'), 'red', clear=true);
+                    highlightSquares($('#board'), 'red', move=mv);
+
+                    if (game.empty_square) {
+                        var pos = Board.board.position();
+
+                        if (!pos[game.empty_square]) {
+                            pos[game.empty_square] = game.empty_piece;
+                            Board.board.position(pos, false);
+                        }
+
+                        game.empty_square = null;
+                        game.empty_piece = null;
+                    }
+                }
+            }
+
+            return 'snapback'
+        }
+    }
+}
 
 
 
@@ -296,38 +390,86 @@ $( window ).on('beforeunload',function() {
     return "If you leave the fics telnet sess will be lost";
 });
 
-$( document ).on('mouseup', function() { 
-    clearInterval(BoardController.rwtimer);
-    clearInterval(BoardController.fftimer);
-});
+$(document).ready( function() {
 
-$( document ).on('click', function() { 
-    closeAllMenus();
-});
 
-$( document ).on('keydown', function(e) {
-    if (!Board.game_num) return;
 
-    if ( $.inArray(e.which, [37,38,39,40]) == -1 ) return;
+    //$( '.square-55d63' ).on('click',  function(evt) {
+    $( 'body' ).on('click',  '.square-55d63', function(evt) {
+        console.log('BOQWEPHUSNECK');
 
-    e.preventDefault();           
-    
-    var game = g_gamemap.get(Board.game_num);
-    if (!game) return;
+        var square = $(evt.currentTarget).attr('data-square');
 
-    if (e.which == 37) {            // left
-        if (game.current_move_index > -1) {
-            Board.goToMove(Board.game_num, game.current_move_index - 1);
+        if ( !(typeof(square) === 'string' && square.search(/^[a-h][1-8]$/) !== -1) ) {
+            return;
         }
-    } else if (e.which == 39) {     //right
-        if (game.current_move_index < game.chess.history().length - 1) {
-            Board.goToMove(Board.game_num, game.current_move_index + 1);
+
+        if ( Board.click_from && Board.click_piece ) {
+            attemptMove(Board.click_from, square, Board.click_piece);
+            Board.click_from = null;
+            Board.click_piece = null;
+            //$(this).removeClass('.highlight-square-cyan');
+            $('.square-' + square).removeClass('.highlight-square-cyan');
+            return;
         }
-    } else if (e.which == 38) {     //up
-        Board.goToMove(Board.game_num, -1);
-    } else if (e.which == 40) {     //down
-        Board.goToMove(Board.game_num, game.chess.history().length - 1);
-    }
+            
+        var piece = null;
+        var pos = Board.board.position()
+        if (pos.hasOwnProperty(square)) {
+            piece = pos[square];
+        }
+        
+        var game = g_gamemap.get(Board.game_num);
+
+        if ( piece && piece[0] === game.human_color ) {
+            console.log('hi');
+            Board.click_from = square;
+            Board.click_piece = piece;
+            $('.square-' + square).addClass('.highlight-square-cyan');
+        }
+    });
+
+
+
+
+
+
+
+
+
+    $( document ).on('mouseup', function() { 
+        clearInterval(BoardController.rwtimer);
+        clearInterval(BoardController.fftimer);
+    });
+
+    $( document ).on('click', function() { 
+        closeAllMenus();
+    });
+
+    $( document ).on('keydown', function(e) {
+        if (!Board.game_num) return;
+
+        if ( $.inArray(e.which, [37,38,39,40]) == -1 ) return;
+
+        e.preventDefault();           
+        
+        var game = g_gamemap.get(Board.game_num);
+        if (!game) return;
+
+        if (e.which == 37) {            // left
+            if (game.current_move_index > -1) {
+                Board.goToMove(Board.game_num, game.current_move_index - 1);
+            }
+        } else if (e.which == 39) {     //right
+            if (game.current_move_index < game.chess.history().length - 1) {
+                Board.goToMove(Board.game_num, game.current_move_index + 1);
+            }
+        } else if (e.which == 38) {     //up
+            Board.goToMove(Board.game_num, -1);
+        } else if (e.which == 40) {     //down
+            Board.goToMove(Board.game_num, game.chess.history().length - 1);
+        }
+    });
 });
 
 
@@ -348,23 +490,23 @@ SOCK.on("logged_in", function(msg) {
 
     m.request({
         method: 'GET',
-        url: '/soundmap'
+        url: DOMAIN + '/soundmap'
     })
     .then( (result) => {
         for (i=0; i<result.ambience.length; i++) {
-            g_soundmap.ambience.push( new Howl({ src: ['/sound/ambience/' + result.ambience[i]] }) );
+            g_soundmap.ambience.push( new Howl({ src: [DOMAIN + '/sound/ambience/' + result.ambience[i]] }) );
         }
         for (i=0; i<result.gong.length; i++) {
-            g_soundmap.gong.push( new Howl({ src: ['/sound/gong/' + result.gong[i]] }) );
+            g_soundmap.gong.push( new Howl({ src: [DOMAIN + '/sound/gong/' + result.gong[i]] }) );
         }
         for (i=0; i<result.moves.length; i++) {
-            g_soundmap.moves.push( new Howl({ src: ['/sound/moves/' + result.moves[i]] }) );
+            g_soundmap.moves.push( new Howl({ src: [DOMAIN + '/sound/moves/' + result.moves[i]] }) );
         }
         for (i=0; i<result.captures.length; i++) {
-            g_soundmap.captures.push( new Howl({ src: ['/sound/captures/' + result.captures[i]] }) );
+            g_soundmap.captures.push( new Howl({ src: [DOMAIN + '/sound/captures/' + result.captures[i]] }) );
         }
         for (i=0; i<result.checks.length; i++) {
-            g_soundmap.checks.push( new Howl({ src: ['/sound/checks/' + result.checks[i]] }) );
+            g_soundmap.checks.push( new Howl({ src: [DOMAIN + '/sound/checks/' + result.checks[i]] }) );
         }
     })
     .catch( (err) => console.log('EROROROR: ' + err) );
@@ -624,8 +766,8 @@ SOCK.on("result", function(msg) {
                     if (/[18]$/.test(target) && /[pP]/.test(piece)) {
                         var choices = game.chess.moves({verbose:true});
                         for (var i=0; i<choices.length; i++) {
-                            m = choices[i];
-                            if (m.from === source && m.to === target) {
+                            var ch = choices[i];
+                            if (ch.from === source && ch.to === target) {
                                 mv.promotion = 'q';
                                 break;
                             }
@@ -1128,7 +1270,14 @@ var Board = {
     createChessboard: function() {
         var game = g_gamemap.get(Board.game_num);
         Board.board = new ChessBoard('board', {
-            pieceTheme: game.pieceTheme,
+            pieceTheme: function(piece) {
+                if (game.theme) {
+                    if (piece.search(/w/) !== -1) {
+                        return DOMAIN + '/img/chesspieces/' + game.theme.white_pieces + '/' + piece + '.png';
+                    }
+                    return DOMAIN + '/img/chesspieces/' + game.theme.black_pieces + '/' + piece + '.png';
+                }
+            },
             position: game.chess.fen().split(/\s+/)[0],
             draggable:true,
             onDragStart : function(source, piece, pos, orientation) {
@@ -1142,88 +1291,17 @@ var Board = {
                 return false;
             },
             onDrop : function(source, target, piece, newPos, oldPos, orientation) {
-                if (target === game.empty_square) {
-                    var pos = Board.board.position();
 
-                    if (!pos[game.empty_square]) {
-                        pos[game.empty_square] = game.empty_piece;
-                        Board.board.position(pos);
-                    }
-
-                    game.empty_square = null;
-                    game.empty_piece = null;
-
-
-                } else {
-                    var mv = { from: source, to: target };
-                    if (/[18]$/.test(target) && /[pP]/.test(piece)) {
-                        var choices = game.chess.moves({verbose:true});
-                        for (var i=0; i<choices.length; i++) {
-                            m = choices[i];
-                            if (m.from === source && m.to === target) {
-                                mv.promotion = 'q';
-                                break;
-                            }
-                        }
-                    }
-                    var valid_move = game.chess.move(mv);
-                    if (valid_move) {
-                        game.chess.undo();
-                    }
-                    if (game.s12.my_rel === '1') {
-                        if (!valid_move) {
-                            if (game.empty_square) {
-                                var pos = Board.board.position();
-
-                                if (!pos[game.empty_square]) {
-                                    pos[game.empty_square] = game.empty_piece;
-                                    Board.board.position(pos, false);
-                                }
-
-                                game.empty_square = null;
-                                game.empty_piece = null;
-                            }
-                            return 'snapback';
-                        } else {
-                            SOCK.emit('command', valid_move.from + '-' + valid_move.to);
-                        }
-                    } else if (game.s12.my_rel === '-1') {
-                        var mv = {}
-                        if (source != target) {
-                            if (target === 'offboard') {
-                                if (game.premove) {
-                                    if (game.premove.from === source) {
-                                        game.premove = null;
-                                        highlightSquares($('#board'), 'red', clear=true);
-                                    }
-                                } else { 
-                                    //do nothing
-                                }
-                            } else {
-                                mv.from = source;
-                                mv.to = target;
-                                mv.piece = piece;
-                                game.premove = mv;
-                                highlightSquares($('#board'), 'red', clear=true);
-                                highlightSquares($('#board'), 'red', move=mv);
-
-                                if (game.empty_square) {
-                                    var pos = Board.board.position();
-
-                                    if (!pos[game.empty_square]) {
-                                        pos[game.empty_square] = game.empty_piece;
-                                        Board.board.position(pos, false);
-                                    }
-
-                                    game.empty_square = null;
-                                    game.empty_piece = null;
-                                }
-                            }
-                        }
-
-                        return 'snapback'
-                    }
+                if ( source === target ) {
+                    $('.square-'+source).trigger('click');
+                    console.log('.square-'+source);
+                    console.log('triggered bro?');
                 }
+                return attemptMove(source, target, piece);
+
+
+
+
             },
         });
 
